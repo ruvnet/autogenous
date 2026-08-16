@@ -153,7 +153,7 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
 | Condition | Substrate that instruments it | Status |
 |---|---|---|
 | ≥95% calibrated presence accuracy | RuView calibration + RuField typed obs | **External (RuView) — bench gap** |
-| Peer-failure detection <5s | `failover.ts` timed | Mechanism built; quantify (shared with ADR-401) |
+| Peer-failure detection <5s | `bench-failover.ts` (shared with ADR-401) | Protocol recovery **measured** (p50 0.34 ms at 30% loss, ≈8000× under budget); sensor/network detection latency is the external part |
 | 50% false-alert reduction via fusion | `mixture.ts` + `lineage-independence.ts` fusion vs single-sensor baseline | **Bench gap** |
 | Raw sensing data stays local | sovereign-peer boundary (ADR-401 cap 6) | **Gap (design-only)** |
 | Complete receipt per external action | `action-gate.ts` + `rvf-trajectory.ts` | Built (action side); wire perception provenance in |

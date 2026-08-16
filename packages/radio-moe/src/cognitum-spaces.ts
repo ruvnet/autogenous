@@ -42,7 +42,7 @@ export function envApiKeyAuth(envVar = 'COGNITUM_API_KEY'): CognitumAuth {
 
 export type FetchLike = (
   input: string,
-  init: { method: string; headers: Record<string, string> },
+  init: { method: string; headers: Record<string, string>; body?: string },
 ) => Promise<{ ok: boolean; status: number; json(): Promise<unknown>; text(): Promise<string> }>;
 
 export interface CognitumSpacesConfig {

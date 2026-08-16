@@ -270,6 +270,18 @@ export {
   type FetchLike as CognitumFetchLike,
 } from './cognitum-spaces.js';
 
+// Cognitum identity OAuth (ADR-093): a user completes the CLI session exchange and
+// the resulting Bearer token plugs into the Spaces/services clients — the mesh uses
+// Cognitum services under the user's own authenticated identity.
+export {
+  CognitumIdentityClient,
+  sessionAuth,
+  sessionActive,
+  type CliSessionExchangeRequest,
+  type CliSession,
+  type CognitumIdentityConfig,
+} from './cognitum-identity.js';
+
 // ADR-396 production profile: hash-chained batch signing (1 signature per batch).
 export { sealBatch, verifyBatch, BatchSigner, MAX_BATCH, type BatchSeal } from './batch-signing.js';
 

@@ -14,6 +14,8 @@
 use agl_types::{FitnessVector, Genome, HardGates};
 use antibody::{Antibody, Detector};
 use constitution::Constitution;
+use deployment::verified_rollback;
+pub use deployment::{DeploymentAdapter, Health, InMemoryAdapter, RollbackReceipt};
 use envelope::{
     evaluate_and_sign, verify_promotion, CandidateManifest, EvaluationReceipt, InvariantProof,
     PromotionEnvelope, RolePins,
@@ -120,6 +122,10 @@ pub struct CanaryOutcome {
     pub rolled_back: bool,
     pub rollback_init_ms: Option<u128>,
     pub parent_restore_ms: Option<u128>,
+    /// The signed proof that the parent was actually restored + confirmed healthy
+    /// (finding #6). `None` when no rollback occurred, or a restore was commanded
+    /// but could not be confirmed — the latter fails `slos_met`.
+    pub rollback_receipt: Option<RollbackReceipt>,
     pub slos_met: bool,
 }
 
@@ -326,11 +332,12 @@ impl Runtime {
     /// cryptographic promotion authority is the (already-verified) envelope; this
     /// is the staged rollout + timed rollback safety net.
     #[allow(clippy::too_many_arguments)]
-    pub fn run_canary<C: Clock, F: FnMut(&C) -> FitnessVector>(
+    pub fn run_canary<C: Clock, F: FnMut(&C) -> FitnessVector, A: DeploymentAdapter>(
         &self,
         candidate_id: &str,
         rollback_target: &str,
         clock: &C,
+        adapter: &mut A,
         mut next_fitness: F,
         observations_per_stage: u32,
         max_samples: usize,
@@ -346,6 +353,7 @@ impl Runtime {
         let mut rolled_back = false;
         let mut rollback_init_ms = None;
         let mut parent_restore_ms = None;
+        let mut rollback_receipt = None;
 
         for _ in 0..max_samples {
             let f = next_fitness(clock);
@@ -353,9 +361,25 @@ impl Runtime {
             match ctrl.observe(&f) {
                 Decision::RollBack { .. } => {
                     rollback_init_ms = Some(clock.now_millis().saturating_sub(before));
+                    // Finding #6: actually COMMAND the restoration and confirm it —
+                    // the adapter restores traffic to `rollback_target`, we verify
+                    // the active artifact hash + health, and only a confirmed,
+                    // healthy restore yields a signed receipt. A failed/unhealthy
+                    // restore leaves `rolled_back = false` and fails `slos_met`.
                     let restore_start = clock.now_millis();
+                    let receipt = verified_rollback(
+                        adapter,
+                        &self.controller,
+                        rollback_target,
+                        clock.now_secs(),
+                    );
                     parent_restore_ms = Some(clock.now_millis().saturating_sub(restore_start));
-                    rolled_back = true;
+                    if let Ok(r) = receipt {
+                        if r.is_valid() {
+                            rolled_back = true;
+                            rollback_receipt = Some(r);
+                        }
+                    }
                     break;
                 }
                 Decision::ReadyForPromotion => {
@@ -373,7 +397,10 @@ impl Runtime {
 
         let slos_met = match (rollback_init_ms, parent_restore_ms) {
             (Some(ri), Some(pr)) => {
-                ri <= slos.max_rollback_init_ms && pr <= slos.max_parent_restore_ms
+                ri <= slos.max_rollback_init_ms
+                    && pr <= slos.max_parent_restore_ms
+                    // a rollback is only "met" if it was actually confirmed.
+                    && rollback_receipt.as_ref().map(|r| r.is_valid()).unwrap_or(false)
             }
             _ => true,
         };
@@ -382,6 +409,7 @@ impl Runtime {
             rolled_back,
             rollback_init_ms,
             parent_restore_ms,
+            rollback_receipt,
             slos_met,
         }
     }

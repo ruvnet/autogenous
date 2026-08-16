@@ -8,7 +8,7 @@ use antibody::Detector;
 use constitution::Constitution;
 use evaluator::Corpus;
 use generator::AttackEvidence;
-use runtime::{Runtime, Slos, TestClock};
+use runtime::{DeploymentAdapter, Health, InMemoryAdapter, Runtime, Slos, TestClock};
 use witness::SigningAuthority;
 
 const NOW: u64 = 1_800_000_000;
@@ -127,10 +127,15 @@ fn unseen_attack_becomes_a_signed_independently_evaluated_defense() {
     assert!(outcome.lineage_ids.len() >= 3);
 
     // Staged canary, fully healthy → the signed promotion completes.
+    // Deployment surface: parent artifact active+healthy, candidate deployed on top.
+    let mut adapter = InMemoryAdapter::new(&chosen.antibody.rollback_target);
+    adapter.register(&chosen.antibody.id, Health::Healthy);
+    adapter.deploy(&chosen.antibody.id).unwrap();
     let canary = rt.run_canary(
         &chosen.antibody.id,
         &chosen.antibody.rollback_target,
         &clock,
+        &mut adapter,
         |_| good(),
         2,
         12,
@@ -150,11 +155,16 @@ fn injected_regression_restores_parent_within_slo() {
     };
     let chosen = rt.defend(&evidence, &clock).chosen.expect("chosen");
 
+    // Candidate is live; the parent artifact is the confirmed-healthy rollback target.
+    let mut adapter = InMemoryAdapter::new(&chosen.antibody.rollback_target);
+    adapter.register(&chosen.antibody.id, Health::Healthy);
+    adapter.deploy(&chosen.antibody.id).unwrap();
     let mut n = 0u32;
     let canary = rt.run_canary(
         &chosen.antibody.id,
         &chosen.antibody.rollback_target,
         &clock,
+        &mut adapter,
         |c| {
             c.advance_ms(500);
             n += 1;
@@ -179,6 +189,16 @@ fn injected_regression_restores_parent_within_slo() {
     assert!(
         canary.parent_restore_ms.unwrap() <= 60_000,
         "parent restore SLO"
+    );
+    // Finding #6: the rollback was actually EXECUTED and CONFIRMED — a signed
+    // receipt binds the restored (parent) artifact and attests it healthy.
+    let receipt = canary.rollback_receipt.expect("a signed rollback receipt");
+    assert!(receipt.is_valid());
+    assert_eq!(receipt.restored_hash, chosen.antibody.rollback_target);
+    assert_eq!(
+        adapter.active(),
+        chosen.antibody.rollback_target,
+        "traffic is actually back on the parent artifact"
     );
     assert!(canary.slos_met);
 }

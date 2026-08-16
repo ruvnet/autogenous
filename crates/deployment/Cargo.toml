@@ -1,0 +1,12 @@
+[package]
+name = "deployment"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous deployment adapter: two-phase VERIFIED rollback (command restoration -> confirm restored artifact hash + health -> signed rollback receipt). Closes review finding #6 — rollback is executed and confirmed, not merely decided."
+
+[dependencies]
+witness = { path = "../witness" }
+serde = { workspace = true }

@@ -18,4 +18,5 @@ lineage = { path = "../lineage" }
 witness = { path = "../witness" }
 generator = { path = "../generator", package = "autogenous-generator" }
 envelope = { path = "../envelope" }
+deployment = { path = "../deployment" }
 serde = { workspace = true }

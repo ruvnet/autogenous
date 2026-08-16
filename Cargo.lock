@@ -113,6 +113,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "deployment"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "witness",
+]
+
+[[package]]
 name = "der"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -305,6 +313,7 @@ dependencies = [
  "antibody",
  "autogenous-generator",
  "constitution",
+ "deployment",
  "envelope",
  "evaluator",
  "lineage",

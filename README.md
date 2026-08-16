@@ -55,6 +55,7 @@ The first executable profile is the **Autogenous Antibody Package (AAP)**: a sig
 | [`lineage`](./crates/lineage) | §5/§10 | Append-only content-addressed provenance DAG + quality-diversity archive (poor performers retained, not deleted) |
 | [`autogenous-generator`](./crates/generator) | MVP #3 | Synthesizes a *diverse population* of typed candidates from witnessed evidence — **never sees the evaluator's labels** (separation) |
 | [`envelope`](./crates/envelope) | **ADR-394** | **Cryptographically-closed promotion**: content-bound manifests, signed evaluation receipts (≥2 pinned judges, beats-parent), signed promotion envelope; `verify_promotion` returns *every* violation |
+| [`deployment`](./crates/deployment) | **ADR-394 #6** | Two-phase **verified** rollback: a `DeploymentAdapter` *commands* restoration, confirms the active artifact hash + health, and emits an ed25519-signed `RollbackReceipt` — rollback is executed and confirmed, not merely decided |
 | [`runtime`](./crates/runtime) | §9/§14 | The self-running loop on the closed path, with a `Clock` abstraction and measured rollback/restore SLOs |
 
 **Cryptographically closed** (ADR-394 — security-review remediation): the promotion transition depends on **independently-verified, content-bound evidence, never caller-supplied booleans or strings.** `promote("")` is impossible; the verifier consumes **ed25519-signed evaluation receipts from ≥2 distinct pinned judges** measuring candidate-vs-parent on the same corpus; a candidate must **beat its parent** with a non-inferiority margin; effects/rollback-target/invariant-proofs are inside the content-addressed manifest. The adversarial acceptance test rejects a maximally-malicious candidate for **≥6 independent reasons before any canary**. CI enforces `fmt` + `clippy -D warnings` + `cargo audit`.
@@ -62,7 +63,7 @@ The first executable profile is the **Autogenous Antibody Package (AAP)**: a sig
 P7 (invented representations / semantic airlock) is ongoing research by definition — it has a specified contract (ADR-392 §7), not fake results.
 
 ```bash
-cargo test   # 62 tests, including the end-to-end acceptance lifecycle
+cargo test   # 66 tests, including the end-to-end acceptance lifecycle
 ```
 
 **Measured** (release, Ryzen host, `cargo run --release -p midstream-adapter --example perf`):

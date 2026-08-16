@@ -50,6 +50,7 @@ The first executable profile is the **Autogenous Antibody Package (AAP)**: a sig
 | [`antibody`](./crates/antibody) | P4 | AAP: triggers (symbolic vs statistical), containment, privacy-ruled evidence, expiration/renewal |
 | [`evaluator`](./crates/evaluator) | P5 | Replay a detector over labeled corpora → recall/FP with Wilson-interval uncertainty → fitness vector |
 | [`promotion`](./crates/promotion) | P6 | Staged canary (1→10→50→100%), signed promotion, automatic rollback on the first gate violation |
+| [`midstream-adapter`](./crates/midstream-adapter) | MVP #2 | Stream observation: armed antibodies over live chunks/SSE → structured incidents with derived evidence; rolling window catches chunk-boundary attacks |
 
 P7 (invented representations / semantic airlock) is ongoing research by definition — it has a specified contract (ADR-392 §7), not fake results.
 

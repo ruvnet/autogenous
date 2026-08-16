@@ -20,6 +20,7 @@ import {
 import { openRouterExpert } from '../src/http-experts.js';
 import { packageTrajectory, verifyTrajectory } from '../src/rvf-trajectory.js';
 import { verifyFrame, type AgentFrame } from '../src/agent-frame.js';
+import { MixtureState, signContributionInput, type MixtureSnapshot } from '../src/mixture.js';
 
 const PROMPT = 'In one sentence: why keep routing and authority separate in an agent mesh?';
 
@@ -62,6 +63,16 @@ const folded: AgentFrame[] = [];
 const byAgent = new Map<string, string>();
 const t0 = performance.now();
 
+// Level-2 mixture (ADR-397): every signed frame is consumed into the rolling
+// claim/evidence state — g_i(t) weights update live as frames arrive.
+const identityOf = new Map(peers.map((p) => [p.role, p.id]));
+const mixture = new MixtureState({
+  requestId: 'mesh-run-1',
+  trustedSigners: Object.fromEntries(peers.map((p) => [p.role, p.id.publicKeyDer.toString('hex')])),
+  topK: peers.length,
+});
+let lastSnapshot: MixtureSnapshot | null = null;
+
 const n = await endlessMixLoop(
   peers.map((p) => p.expert),
   PROMPT,
@@ -71,6 +82,23 @@ const n = await endlessMixLoop(
     if (frame.kind === 'claim' && typeof frame.value === 'string') {
       byAgent.set(frame.agentId, (byAgent.get(frame.agentId) ?? '') + frame.value);
     }
+    const identity = identityOf.get(frame.agentId);
+    if (!identity) return;
+    const update = mixture.consume(
+      frame,
+      signContributionInput(identity, frame, {
+        claimId: 'mesh-answer',
+        relation: 'support',
+        sourceIds: [`${frame.agentId}`],
+        quality: frame.confidence,
+        relevance: frame.confidence,
+        evidence: Math.min(1, frame.evidenceHashes.length / 3),
+        cost: Math.min(1, frame.cost),
+        latency: 0.2,
+        uncertainty: frame.uncertainty,
+      }),
+    );
+    if (update.status === 'accepted') lastSnapshot = update.snapshot;
   },
 );
 const ms = performance.now() - t0;
@@ -91,3 +119,17 @@ console.log(`  entries: ${trajectory.entries.length}  root: ${trajectory.root.sl
 console.log(`  @ruvector/rvf present: ${trajectory.rvfAvailable}`);
 console.log(`  every frame signature verifies: ${allSigned}`);
 console.log(`  trajectory verifies: ${verifyTrajectory(trajectory, folded)}`);
+
+// Level-2 mixture state: the g_i(t) weights + claim support at end of stream.
+if (lastSnapshot !== null) {
+  const snap: MixtureSnapshot = lastSnapshot;
+  console.log(`\n── level-2 mixture (g_i(t) at t=end) ──`);
+  for (const c of snap.contributions) {
+    console.log(`  ${c.agentId.padEnd(10)} weight=${c.weight.toFixed(3)} score=${c.score.toFixed(3)}`);
+  }
+  for (const claim of snap.claims) {
+    console.log(
+      `  claim "${claim.claimId}": supportWeight=${claim.supportWeight.toFixed(3)} sources=[${claim.sourceIds.join(', ')}]`,
+    );
+  }
+}

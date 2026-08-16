@@ -51,6 +51,13 @@ The first executable profile is the **Autogenous Antibody Package (AAP)**: a sig
 | [`evaluator`](./crates/evaluator) | P5 | Replay a detector over labeled corpora → recall/FP with Wilson-interval uncertainty → fitness vector |
 | [`promotion`](./crates/promotion) | P6 | Staged canary (1→10→50→100%), signed promotion, automatic rollback on the first gate violation |
 | [`midstream-adapter`](./crates/midstream-adapter) | MVP #2 | Stream observation: armed antibodies over live chunks/SSE → structured incidents with derived evidence; rolling window catches chunk-boundary attacks |
+| [`witness`](./crates/witness) | §4.5/§13 | ed25519 signing, content addressing, append-only signed witness chain + per-artifact seals |
+| [`lineage`](./crates/lineage) | §5/§10 | Append-only content-addressed provenance DAG + quality-diversity archive (poor performers retained, not deleted) |
+| [`autogenous-generator`](./crates/generator) | MVP #3 | Synthesizes a *diverse population* of typed candidates from witnessed evidence — **never sees the evaluator's labels** (separation) |
+| [`envelope`](./crates/envelope) | **ADR-394** | **Cryptographically-closed promotion**: content-bound manifests, signed evaluation receipts (≥2 pinned judges, beats-parent), signed promotion envelope; `verify_promotion` returns *every* violation |
+| [`runtime`](./crates/runtime) | §9/§14 | The self-running loop on the closed path, with a `Clock` abstraction and measured rollback/restore SLOs |
+
+**Cryptographically closed** (ADR-394 — security-review remediation): the promotion transition depends on **independently-verified, content-bound evidence, never caller-supplied booleans or strings.** `promote("")` is impossible; the verifier consumes **ed25519-signed evaluation receipts from ≥2 distinct pinned judges** measuring candidate-vs-parent on the same corpus; a candidate must **beat its parent** with a non-inferiority margin; effects/rollback-target/invariant-proofs are inside the content-addressed manifest. The adversarial acceptance test rejects a maximally-malicious candidate for **≥6 independent reasons before any canary**. CI enforces `fmt` + `clippy -D warnings` + `cargo audit`.
 
 P7 (invented representations / semantic airlock) is ongoing research by definition — it has a specified contract (ADR-392 §7), not fake results.
 
@@ -77,6 +84,7 @@ This is a **research prototype** of the control-plane contract — typed, tested
 - [ADR-391 — Autogenous: governed self-evolving architecture](./docs/adr/ADR-391-autogenous-governed-self-evolving-architecture.md)
 - [ADR-392 — Autogenous Genome Language (AGL) and Antibody Protocol (AAP)](./docs/adr/ADR-392-autogenous-genome-language-antibody-protocol.md)
 - [ADR-393 — Product thesis: the evolutionary control plane + adaptive agent firewall](./docs/adr/ADR-393-autogenous-product-thesis-adaptive-agent-firewall.md)
+- [ADR-394 — Cryptographic closure of the promotion path (security-review remediation)](./docs/adr/ADR-394-cryptographic-closure-of-the-promotion-path.md)
 
 ## Related
 

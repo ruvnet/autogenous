@@ -13,6 +13,7 @@ linked from each section.
 - [6. Self-evolving the mesh (the flywheel)](#6-self-evolving-the-mesh)
 - [7. Defeating false consensus (lineage-weighted fusion)](#7-defeating-false-consensus)
 - [8. Fail-closed boundaries (admit, verify, disclose)](#8-fail-closed-boundaries-admit-verify-disclose)
+- [9. Cognitum Spaces + OAuth (deployed spatial world model)](#9-cognitum-spaces--oauth-deployed-spatial-world-model)
 - [Mental model & glossary](#mental-model--glossary)
 
 ---
@@ -275,6 +276,38 @@ const disclosure = discloseFinding(peer, finding, { maxPrivacyClass: 'internal' 
 // restricted/sensitive evidence is dropped; finding.raw and evidence payloads never appear
 verifyDisclosure(disclosure, peer.publicKeyDer.toString('hex')); // receiver checks provenance + confidence
 ```
+
+---
+
+## 9. Cognitum Spaces + OAuth (deployed spatial world model)
+
+ADR-402's Cognitum Spaces is real and deployed on GCP. A user signs in with their
+Cognitum identity and the mesh reads live spatial state under that identity —
+mapping each Spaces envelope into an `Observation` that flows through the same
+fail-closed admission (§8).
+
+```ts
+import { CognitumIdentityClient, sessionAuth, CognitumSpacesClient, spacesEnvelopeToObservation, admitObservation } from 'radio-moe';
+
+// 1) The user signs in (browser bootstrap) then the CLI exchange completes it →
+//    a Bearer session. exchangeSession sends the request + consumes the token;
+//    it never holds the user's password.
+const identity = new CognitumIdentityClient();
+const session = await identity.exchangeSession({ clientId: 'my-cli', installCtxHash: '<hash>' });
+
+// 2) Use Cognitum services under the user's identity.
+const spaces = new CognitumSpacesClient({ auth: sessionAuth(session) }); // or apiKeyAuth(() => process.env.COGNITUM_API_KEY)
+const { data, boundary } = await spaces.listSpacesResult();
+console.log(boundary?.excluded); // raw_csi, recordings, pose_frames, … stay at the edge — never in the cloud
+
+// 3) A Spaces envelope becomes an admissible Observation (or is rejected fail-closed).
+// const obs = spacesEnvelopeToObservation(env); admitObservation(obs, Date.now());
+```
+
+Live-verified: `GET /v1/spaces` returns 200 with a valid `cog_` key, and the
+service reports the cloud/edge privacy `boundary` — ADR-402's "raw sensing stays
+local", enforced on the running service. See
+[ADR-402](../../../docs/adr/ADR-402-ruview-cognitum-spaces-spatial-intelligence.md).
 
 ---
 

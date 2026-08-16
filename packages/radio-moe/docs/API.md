@@ -234,6 +234,28 @@ Design: [ADR-401 cap 9](../../../docs/adr/ADR-401-perpetual-intelligence-machine
 
 ---
 
+## 11. Cognitum integration (ADR-402 / ADR-093) — deployed spatial world model
+
+```ts
+import { CognitumIdentityClient, sessionAuth, CognitumSpacesClient, spacesEnvelopeToObservation } from 'radio-moe';
+```
+
+Connect the mesh to the **deployed** Cognitum Spaces service (GCP `spacesapi`,
+`cog_`-key / Bearer authed) — live-verified.
+
+| Export | Kind | Summary |
+|---|---|---|
+| `CognitumIdentityClient`, `exchangeSession(req, now?)`, `CliSession`, `CliSessionExchangeRequest` | class/fn/type | **Cognitum OAuth for users**: complete the identity CLI session exchange (`POST /v1/cli/session/exchange`, ADR-093) → a Bearer session (access/refresh token, org/workspace, expiry). |
+| `sessionAuth(session)`, `sessionActive(session, now?)` | fn | Turn a session into a `CognitumAuth` (Bearer); check token expiry. |
+| `CognitumSpacesClient`, `listSpaces()`, `listSpacesResult()`, `CognitumSpaceTwin`, `SpacesListResult`, `SpacesBoundary` | class/fn/type | `GET /v1/spaces` → the caller's spatial twins + the service's cloud/edge privacy `boundary` (raw sensing excluded from the cloud). |
+| `spacesEnvelopeToObservation(env)`, `CognitumSpacesEnvelope`, `privacyOf` | fn/type | Map a Cognitum Spaces Envelope → a radio-moe `Observation` (flows through `admitObservation`, §9). |
+| `apiKeyAuth`, `bearerAuth`, `envApiKeyAuth`, `CognitumAuth` | fn/type | Auth attachments: `cog_` X-API-Key, Bearer token, or an env-read key. Read at call time — never hardcoded. |
+
+End-to-end: `exchangeSession → sessionAuth → new CognitumSpacesClient({ auth }).listSpaces()`.
+Design: [ADR-402](../../../docs/adr/ADR-402-ruview-cognitum-spaces-spatial-intelligence.md), [ADR-093 (identity)](https://github.com/) local.
+
+---
+
 ## Errors you will meet
 
 | Error | When |

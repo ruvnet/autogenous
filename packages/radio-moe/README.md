@@ -37,7 +37,7 @@ incompatible vocabularies, and the race result is literally typed
 
 ```bash
 npm install
-npm test              # 116 offline, deterministic tests
+npm test              # 134 offline, deterministic tests
 npm run demo          # a 3-peer local mesh — both regimes
 npm run bench:fusion  # does the fused mixture beat the strongest single expert?
 ```
@@ -73,6 +73,7 @@ and the **[API / SDK Reference](docs/API.md)** (every public export, grouped by 
 | **Real backends** | `openRouterExpert`, `geminiExpert`, `CommandStreamingExpert` (`claude`/`codex`), `harnessPodExperts` | Run the mesh against OpenRouter / Gemini / local `claude -p` / `codex exec` / create-agent-harness pods. |
 | **Governed evolution (ADR-400/401)** | `evolveMesh`, `promotable`, `promoteAuthorized`, `verifyLedger`, `CEILINGS` | Flywheel over the *evolvable* params only, inside frozen ceilings, ed25519-signed receipts; promotion gated by the one predicate `Better ∧ Safe ∧ Authorized ∧ Reversible`. |
 | **Reputation market (ADR-401 cap 9)** | `signCapabilityClaim`, `mintPerformanceRecord`, `reputation`, `selectionWeight` | Peers advertise capabilities and earn reputation only from externally-verified contribution (tied to `admitDurableWrite`); the `w=q·t·r/(c·l)` selection weight is a labeled *unvalidated* hypothesis. |
+| **Cognitum integration (ADR-402/093)** | `CognitumSpacesClient`, `spacesEnvelopeToObservation`, `CognitumIdentityClient`, `sessionAuth` | Connect the mesh to the DEPLOYED Cognitum Spaces service (live `GET /v1/spaces`) under a user's Cognitum OAuth session (identity CLI exchange → Bearer); map Spaces envelopes → Observations. |
 
 ## Architecture
 
@@ -112,7 +113,7 @@ See [ADR-401](../../docs/adr/ADR-401-perpetual-intelligence-machine.md).
 
 | Script | What it runs |
 |---|---|
-| `npm test` | 116 offline deterministic tests |
+| `npm test` | 134 offline deterministic tests (+ live-gated Cognitum & openssl-gated TLS) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run demo` | 3-peer local mesh, both regimes (`examples/local-mesh.ts`) |
 | `npm run mesh` | request→stream→fold end to end (`examples/mesh-run.ts`) |
@@ -129,7 +130,7 @@ Reference implementation. Routing, logit mixing / text racing, signed streaming
 frames (in-memory + reference TCP), deterministic claim/evidence state,
 independence-aware action gating, signed output ordering, replay checkpoints,
 fenced shadow takeover, governed flywheel evolution, and the fusion-vs-best-single
-benchmark are covered by **116 passing offline tests**. Not yet demonstrated:
+benchmark are covered by **134 offline tests**. Not yet demonstrated:
 production QUIC/mTLS transport, hostile-network deployment, production witness
 persistence, cross-machine multi-peer runs at scale, and ADR-397's end-to-end
 quality/latency SLOs. This is **not** a claim of full production readiness or full

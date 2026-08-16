@@ -163,6 +163,21 @@ export {
   type LineageResolver,
 } from './lineage-decision.js';
 
+// External outcome verification before a durable write (ADR-401 Dec 2): the one
+// measured false-consensus mitigation (task-outcome verification), gated on
+// external + independent affirmation surviving adversarial refutation.
+export {
+  admitDurableWrite,
+  signOutcomeVerdict,
+  outcomeHash,
+  type OutcomeVerdict,
+  type UnsignedOutcomeVerdict,
+  type VerdictStance,
+  type OutcomeGatePolicy,
+  type OutcomeGateDecision,
+  type OutcomeRejection,
+} from './outcome-verifier.js';
+
 // Direct signed TCP peer transport (ADR-395/396 reference adapter — integrity
 // only; production requires QUIC+mTLS or equivalent).
 export {

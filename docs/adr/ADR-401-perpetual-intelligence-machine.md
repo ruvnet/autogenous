@@ -77,11 +77,18 @@ Status legend: **Built** (in `packages/radio-moe/src`, tested) · **Partial**
    - **preserve dissent** — `mixture.ts` retains contradictions and never
      silently drops a minority claim;
    - **inject adversarial experts** — `evidence-feeds.ts` decorrelated feeds +
-     a to-build dedicated adversarial/devil's-advocate expert (loop item);
+     the adversarial `refute` stance now first-class in the outcome gate (below);
    - **require external outcome verification before updating durable memory** —
-     no outcome writes to institutional memory until an out-of-band verifier
-     confirms it (partial: the flywheel gate is internal; the external-verifier
-     seam is a loop item).
+     **BUILT** (`src/outcome-verifier.ts`, `admitDurableWrite`). A durable write is
+     admitted only when the outcome collects enough **external** affirmations (a
+     verifier that is one of the outcome's own contributors is dropped — no
+     self-attestation), those affirmers clear a graded lineage `effectiveSupport`
+     quorum (no same-lineage rubber-stamp clique), and it **survives adversarial
+     refutation** (a single valid external `refute` verdict blocks the write).
+     Fail-closed: no external verifier ⇒ no write. Realizes the one false-consensus
+     mitigation with a measured effect size (task-outcome verification, +15.6%,
+     MAST arXiv:2503.13657), applied at the write boundary. Proven by
+     `test/outcome-verifier.test.ts` (6 tests).
 
 3. **Converge the promotion invariant to one predicate.** — **DONE.**
    `mesh-evolve.ts` now exports `promoteAuthorized(candidate, champion, { authorized,

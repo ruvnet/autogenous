@@ -22,7 +22,7 @@ linked from each section.
 ```bash
 cd packages/radio-moe
 npm install
-npm test              # 87 offline, deterministic tests
+npm test              # 116 offline, deterministic tests
 npm run demo          # a 3-peer local mesh — both regimes
 ```
 
@@ -127,10 +127,13 @@ const decision = await gate.evaluate(action, supports);
 // { execute, independentSupport, risk, rejection?: 'insufficient-independent-quorum' | 'risk-threshold' | ... }
 ```
 
-Today independence at the gate is **binary** (distinct modelId ∧ disjoint
-sourceIds) via `independentSupportSet`. The graded, lineage-aware upgrade
-(`effectiveSupport`) is available as a decision helper — see § 7 — and is being
-wired into the gate under its own review (it changes *when actions execute*).
+By default independence at the gate is **binary** (distinct modelId ∧ disjoint
+sourceIds) via `independentSupportSet`. The graded, lineage-aware upgrade is now
+available as an **opt-in** `gradedIndependence: { minimumEffectiveSupport }`
+option — a strictly-tightening AND-gate, so a same-provider/arch clique that
+passes the binary count still fails the lineage-discounted quorum (supports may
+carry a signed `lineage`; absent lineage is fail-closed). It can only tighten,
+never loosen; see § 7 for the underlying `effectiveSupport`.
 
 ---
 
@@ -278,17 +281,19 @@ verifyDisclosure(disclosure, peer.publicKeyDer.toString('hex')); // receiver che
 ## Mental model & glossary
 
 ```
-route (Gate, top-k)  →  stream (signed AgentFrames)  →  fuse (MixtureState)
-      →  decide (lineageWeightedWinner)  →  authorize (ActionGate)  →  output (signed, shadowed)
-                                                                         ↘ evolve (flywheel)
+observe (admitObservation)  →  route (Gate, top-k)  →  stream (signed AgentFrames)
+    →  fuse (MixtureState)  →  decide (lineageWeightedWinner)  →  authorize (ActionGate)
+    →  persist (admitDurableWrite)  →  output (signed, shadowed)  →  disclose (discloseFinding)
+                                                                        ↘ evolve (flywheel, promoteAuthorized)
 ```
+Every stage has a signed, fail-closed, independence-aware guard.
 
 | Term | Meaning |
 |---|---|
 | **Expert** | A capability-tagged producer; `LogitExpert` (mixable) or `TextExpert`/streaming (raced). |
 | **AgentFrame** | A typed, ed25519-signed unit of expert output (`claim`/`evidence`/`plan`/`action`). |
 | **MixtureState** | Request-scoped fold of authenticated contributions → immutable, replica-stable snapshots. |
-| **Independence** | How uncorrelated two supports are. Binary at the gate today; graded via `effectiveSupport` (lineage). |
+| **Independence** | How uncorrelated two supports are. Binary at the gate by default; opt-in graded via `effectiveSupport` (lineage). |
 | **ActionGate** | Releases an action only from independent, admitted, low-risk signed support under a frozen policy. |
 | **Flywheel** | Governed evolution of the evolvable params only, inside frozen ceilings, with signed receipts. |
 | **RVF trajectory** | A hash-chained, tamper-evident witness package of a run (`packageTrajectory`/`verifyTrajectory`). |

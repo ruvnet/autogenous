@@ -243,7 +243,13 @@ export {
   type RejectReason,
   type VerifyContext,
   type TcpNodeOptions,
+  frameOf,
 } from './tcp-transport.js';
+
+// TLS peer transport — the same signed-envelope logic over an encrypted node:tls
+// socket, adding wire CONFIDENTIALITY on top of the TCP transport's integrity.
+// PKI (key/cert/ca, mutual auth) is the deployer's, supplied via tls options.
+export { TlsPeerNode, tlsSendEnvelope, TlsConnection } from './tls-transport.js';
 
 // ADR-396 production profile: hash-chained batch signing (1 signature per batch).
 export { sealBatch, verifyBatch, BatchSigner, MAX_BATCH, type BatchSeal } from './batch-signing.js';

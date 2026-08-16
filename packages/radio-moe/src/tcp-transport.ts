@@ -253,7 +253,8 @@ export class TcpPeerNode {
   }
 }
 
-function frameOf(envelope: Envelope): Buffer {
+/** Length-prefix (4-byte BE) frame an envelope. Shared with the TLS transport. */
+export function frameOf(envelope: Envelope): Buffer {
   const bytes = Buffer.from(JSON.stringify(envelope), 'utf-8');
   if (bytes.length > MAX_FRAME_BYTES) {
     throw new Error(`frame exceeds MAX_FRAME_BYTES (${bytes.length})`);

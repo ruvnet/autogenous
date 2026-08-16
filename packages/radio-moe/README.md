@@ -65,7 +65,7 @@ and the **[API / SDK Reference](docs/API.md)** (every public export, grouped by 
 | Layer | Modules | What it does |
 |---|---|---|
 | **Routing + combine** | `Gate`, `LogitExpert`/`TextExpert`, `mixLogits`/`raceTextExperts`, `Peer`/`Mesh` | Top-k capability routing; regime-correct combination. |
-| **Signed transport** | `PeerIdentity`, `InMemorySignedTransport`, `TcpPeerNode`, `sealBatch`/`BatchSigner` | ed25519-signed frames; a reference TCP peer; hash-chained batch signing (1 sig / ≤64 frames). |
+| **Signed transport** | `PeerIdentity`, `InMemorySignedTransport`, `TcpPeerNode`, `TlsPeerNode`, `sealBatch`/`BatchSigner` | ed25519-signed frames; reference TCP peer (integrity) + a TLS peer (integrity **+ confidentiality**, deployer-supplied PKI); hash-chained batch signing (1 sig / ≤64 frames). |
 | **Streaming mixture (ADR-397)** | `AgentFrame`, `signFrame`/`verifyFrame`, `MixtureState`, `RelevanceScorer` | Typed signed claim/evidence frames folded continuously with q/r/e/c/l/u weighting, provenance, contradiction tracking, replica-stable state hashes. |
 | **Governed release** | `ActionGate`, `independentSupportSet`, `DeterministicShadow`, `createTakeoverGrant` | Actions release only from signed, admitted, independently-sourced support under a frozen policy; signed output ordering; fenced shadow takeover. |
 | **Independence / false-consensus** | `effectiveSupport`, `lineageWeightedWinner`, `admitDurableWrite`, `buildCert`/`verifyCert`, `partitionEvidence` | Lineage-graded independence (provider/arch/size), lineage-weighted fusion decision, external+adversarial outcome verification before durable writes, k-of-n counter-signing quorum, decorrelated evidence feeds. |

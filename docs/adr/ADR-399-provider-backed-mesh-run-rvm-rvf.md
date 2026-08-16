@@ -144,3 +144,30 @@ that still needs evidence-independence weighting before it counts as quorum).
   ceiling: static-only **TPR 0.3 / FPR 1.0** — static alone can't do this job.
   A tuned run (more cycles/population) is the tracked follow-up; passing gates
   at pop-2/1-cycle would have been suspicious, not impressive.
+
+## Update 3 (2026-08-16): level-2 mixture landed; worker-output review completed
+
+The level-2 phase is now implemented in three modules (produced by the
+coordinated worker fleet, then **reviewed, security-scanned, and kept** —
+imports are node:crypto + local only; no process/network/fs/dynamic-code
+surface; deterministic; 27 dedicated tests):
+
+- `src/mixture.ts` — rolling claim/evidence mixture state over verified
+  AgentFrames with the q/r/e−c−l−u gating dimensions and signature-bound
+  contributions (explicitly NOT token-level MoE).
+- `src/action-gate.ts` — constitutional action release: correlated reports
+  (shared operator, model lineage, evidence, or source provenance) collapse to
+  ONE vote (ADR-398's false-consensus fix); policy + trust roots snapshotted at
+  construction; bounded input sizes/TTLs/clock-skew.
+- `src/failover.ts` — deterministic mixture checkpoint replication + fenced
+  mixer takeover with bounded payloads and a takeover cap.
+
+Process note (recorded for honesty): these files were swept into commit
+`6b32356` by a broad `git add -A` BEFORE review — a process miss. The review
+happened one commit later and they passed; a narrower staging discipline
+applies from here. A redundant simpler mixer written in parallel was dropped in
+favor of this canonical implementation. Tuned Darwin Shield security bench
+(3 cycles × pop 4, seed 42): 9/12 gates, champion beats every baseline
+(0.6445 vs 0.598), statistically promoted (lower95 0.0165 > 0, p=0), evolved
+genome g2_v2_8 (sink-first + npm-audit); FPR reduction and seeded-vs-random
+remain open.

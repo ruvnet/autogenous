@@ -19,7 +19,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { PeerIdentity } from '../src/transport.js';
-import { TcpPeerNode, sealEnvelope, sendEnvelope, type Envelope } from '../src/tcp-transport.js';
+import { TcpPeerNode, TcpConnection, sealEnvelope, sendEnvelope, type Envelope } from '../src/tcp-transport.js';
+import { BatchSigner, verifyBatch, type BatchSeal } from '../src/batch-signing.js';
 import { verifyFrame, type AgentFrame } from '../src/agent-frame.js';
 import { CommandStreamingExpert, type EventParser } from '../src/streaming-experts.js';
 import { openRouterExpert } from '../src/http-experts.js';
@@ -103,17 +104,32 @@ async function runExpert(): Promise<void> {
           args: ['-e', `for (const w of ${JSON.stringify([`${name}:`, ' separate', ' routing', ' from', ' authority.'])}) console.log(JSON.stringify({delta:w}));`],
         }, fakeParser);
 
-    for await (const frame of expert.run(prompt, e.requestId)) {
-      await sendEnvelope(origin.host, origin.port, sealEnvelope(identity, {
+    // Optimized path (ADR-399 Update 6): ONE persistent socket to the origin,
+    // deltas sealed in bounded hash-chained batches (1 signature per batch).
+    const batchSize = Math.max(1, Number(process.env.MESH_BATCH ?? 16));
+    const conn = new TcpConnection(origin.host, origin.port);
+    const signer = new BatchSigner(identity, e.requestId, name, batchSize);
+    const batch: AgentFrame[] = [];
+    const sendBatch = async (seal: BatchSeal, frames: AgentFrame[]): Promise<void> => {
+      await conn.send(sealEnvelope(identity, {
         recipientPeer: origin.peerId,
         requestId: e.requestId,
         routeEpoch: e.routeEpoch,
         senderSequence: ++seq,
         kind: 'stream.delta',
-        payload: { frame },
+        payload: { seal, frames },
       }));
+    };
+    for await (const frame of expert.run(prompt, e.requestId)) {
+      batch.push(frame);
+      const seal = signer.push(frame);
+      if (seal) {
+        await sendBatch(seal, batch.splice(0, batch.length));
+      }
     }
-    await sendEnvelope(origin.host, origin.port, sealEnvelope(identity, {
+    const tail = signer.flush();
+    if (tail) await sendBatch(tail, batch.splice(0, batch.length));
+    await conn.send(sealEnvelope(identity, {
       recipientPeer: origin.peerId,
       requestId: e.requestId,
       routeEpoch: e.routeEpoch,
@@ -121,6 +137,7 @@ async function runExpert(): Promise<void> {
       kind: 'stream.end',
       payload: {},
     }));
+    conn.close();
     console.log(`[${name}] stream complete`);
     await node2.close();
     process.exit(0);
@@ -152,10 +169,29 @@ async function runOrigin(): Promise<void> {
         return;
       }
       if (e.kind !== 'stream.delta') return;
-      const frame = (e.payload as { frame?: AgentFrame }).frame;
       const expertName = nameOf.get(e.senderPeer);
-      // Layer 2: the AgentFrame inside must verify against the SAME peer's key.
-      if (!frame || !expertName || frame.agentId !== expertName || !verifyFrame(frame, keyOf.get(expertName)!)) {
+      if (!expertName) {
+        badFrames += 1;
+        return;
+      }
+      const key = keyOf.get(expertName)!;
+      const payload = e.payload as { seal?: BatchSeal; frames?: AgentFrame[]; frame?: AgentFrame };
+      if (payload.seal && payload.frames) {
+        // Batch profile: authenticate the batch FIRST (one signature + chain),
+        // then accept its frames — order/tamper/drop all break the chain.
+        if (payload.seal.agentId !== expertName || !verifyBatch(payload.seal, payload.frames, key)) {
+          badFrames += payload.frames.length;
+          return;
+        }
+        for (const frame of payload.frames) {
+          if (frame.agentId !== expertName) { badFrames += 1; continue; }
+          folded.push(frame);
+        }
+        return;
+      }
+      // Legacy per-frame profile.
+      const frame = payload.frame;
+      if (!frame || frame.agentId !== expertName || !verifyFrame(frame, key)) {
         badFrames += 1;
         return;
       }

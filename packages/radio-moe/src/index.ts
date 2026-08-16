@@ -56,3 +56,14 @@ export {
   type SpawnSpec,
   type StreamingExpertOptions,
 } from './streaming-experts.js';
+
+// HTTP streaming providers (ADR-399): run the mesh against OpenRouter / Gemini.
+export {
+  HttpStreamingExpert,
+  openRouterExpert,
+  geminiExpert,
+  openaiSseParser,
+  geminiSseParser,
+  type HttpExpertConfig,
+  type FetchLike,
+} from './http-experts.js';

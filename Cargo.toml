@@ -11,6 +11,9 @@ members = [
   "crates/midstream-adapter",
   "crates/witness",
   "crates/lineage",
+  "crates/generator",
+  "crates/runtime",
+  "crates/envelope",
 ]
 
 [workspace.package]

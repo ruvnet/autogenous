@@ -23,13 +23,23 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum Detector {
     /// Case-insensitive substring match.
-    Contains { needle: String },
+    Contains {
+        needle: String,
+    },
     /// Case-sensitive substring match.
-    ContainsExact { needle: String },
+    ContainsExact {
+        needle: String,
+    },
     /// Matches when at least `min` of the needles appear (case-insensitive).
-    AnyOf { needles: Vec<String>, min: usize },
+    AnyOf {
+        needles: Vec<String>,
+        min: usize,
+    },
     /// Input length in bytes is within [min, max].
-    LengthBetween { min: usize, max: usize },
+    LengthBetween {
+        min: usize,
+        max: usize,
+    },
     /// Boolean combinators.
     All(Vec<Detector>),
     Any(Vec<Detector>),
@@ -104,12 +114,13 @@ impl Detector {
     /// resource bounds on untrusted packages).
     pub fn matches(&self, text: &str) -> bool {
         match self {
-            Detector::Contains { needle } => {
-                lowercase_contains(text, needle)
-            }
+            Detector::Contains { needle } => lowercase_contains(text, needle),
             Detector::ContainsExact { needle } => text.contains(needle.as_str()),
             Detector::AnyOf { needles, min } => {
-                let hits = needles.iter().filter(|n| lowercase_contains(text, n)).count();
+                let hits = needles
+                    .iter()
+                    .filter(|n| lowercase_contains(text, n))
+                    .count();
                 hits >= *min
             }
             Detector::LengthBetween { min, max } => {
@@ -142,8 +153,10 @@ impl Detector {
                 }
             }
             Detector::AnyOf { needles, min } => {
-                let hits: Vec<&String> =
-                    needles.iter().filter(|n| lowercase_contains(text, n)).collect();
+                let hits: Vec<&String> = needles
+                    .iter()
+                    .filter(|n| lowercase_contains(text, n))
+                    .collect();
                 if hits.len() >= *min {
                     for h in hits {
                         out.push(format!("any_of:{h}"));
@@ -184,7 +197,9 @@ fn lowercase_contains(haystack: &str, needle: &str) -> bool {
     if haystack.contains(needle) {
         return true;
     }
-    haystack.to_ascii_lowercase().contains(&needle.to_ascii_lowercase())
+    haystack
+        .to_ascii_lowercase()
+        .contains(&needle.to_ascii_lowercase())
 }
 
 #[cfg(test)]
@@ -193,9 +208,15 @@ mod tests {
 
     fn injection_detector() -> Detector {
         Detector::Any(vec![
-            Detector::Contains { needle: "ignore previous instructions".into() },
+            Detector::Contains {
+                needle: "ignore previous instructions".into(),
+            },
             Detector::AnyOf {
-                needles: vec!["disregard".into(), "system prompt".into(), "directives".into()],
+                needles: vec![
+                    "disregard".into(),
+                    "system prompt".into(),
+                    "directives".into(),
+                ],
                 min: 2,
             },
         ])
@@ -217,7 +238,10 @@ mod tests {
         let json = serde_json::to_string(&d).unwrap();
         let back: Detector = serde_json::from_str(&json).unwrap();
         assert_eq!(d, back);
-        assert_eq!(d.matches("ignore previous instructions"), back.matches("ignore previous instructions"));
+        assert_eq!(
+            d.matches("ignore previous instructions"),
+            back.matches("ignore previous instructions")
+        );
     }
 
     #[test]
@@ -229,14 +253,25 @@ mod tests {
         }
         assert!(matches!(d.validate(), Err(DetectorError::TooManyNodes(_))));
         // Needle bomb.
-        let big = Detector::Contains { needle: "n".repeat(MAX_NEEDLE_BYTES + 1) };
-        assert!(matches!(big.validate(), Err(DetectorError::NeedleBudgetExceeded(_))));
+        let big = Detector::Contains {
+            needle: "n".repeat(MAX_NEEDLE_BYTES + 1),
+        };
+        assert!(matches!(
+            big.validate(),
+            Err(DetectorError::NeedleBudgetExceeded(_))
+        ));
         // Degenerate threshold.
-        let deg = Detector::AnyOf { needles: vec!["a".into()], min: 0 };
+        let deg = Detector::AnyOf {
+            needles: vec!["a".into()],
+            min: 0,
+        };
         assert_eq!(deg.validate(), Err(DetectorError::DegenerateThreshold));
         // Empty needle.
         assert_eq!(
-            Detector::Contains { needle: String::new() }.validate(),
+            Detector::Contains {
+                needle: String::new()
+            }
+            .validate(),
             Err(DetectorError::EmptyNeedle)
         );
         // Sane detector passes.
@@ -246,7 +281,13 @@ mod tests {
     #[test]
     fn adversarial_inputs_do_not_panic() {
         let d = injection_detector();
-        for s in ["", "\u{0}\u{0}\u{0}", &"a".repeat(1_000_000), "ignore\u{202e}previous", "🧬🧬🧬"] {
+        for s in [
+            "",
+            "\u{0}\u{0}\u{0}",
+            &"a".repeat(1_000_000),
+            "ignore\u{202e}previous",
+            "🧬🧬🧬",
+        ] {
             let _ = d.matches(s);
             let _ = d.explain(s);
         }

@@ -1,0 +1,20 @@
+[package]
+name = "envelope"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous cryptographically-closed promotion path: content-bound candidate manifests, signed evaluation receipts (parent-vs-candidate, ≥2 distinct pinned judges), a signed promotion envelope, and a verify_promotion that rejects on every independent violation. Closes review findings 1-6,8."
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+antibody = { path = "../antibody" }
+constitution = { path = "../constitution" }
+evaluator = { path = "../evaluator" }
+witness = { path = "../witness" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

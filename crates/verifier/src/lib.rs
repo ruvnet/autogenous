@@ -89,7 +89,11 @@ pub fn verify(
         }
     };
 
-    Verdict { admissible, promotable, violations }
+    Verdict {
+        admissible,
+        promotable,
+        violations,
+    }
 }
 
 fn admission_reason(e: &AdmissionError) -> String {
@@ -97,12 +101,17 @@ fn admission_reason(e: &AdmissionError) -> String {
         AdmissionError::AuthorityExpansion { requested, ceiling } => {
             format!("authority expansion: requested {requested:?} > ceiling {ceiling:?}")
         }
-        AdmissionError::AuthorityInsufficient { requested, required } => {
+        AdmissionError::AuthorityInsufficient {
+            requested,
+            required,
+        } => {
             format!("authority insufficient: {requested:?} < scope minimum {required:?}")
         }
         AdmissionError::InvariantRegressed(name) => format!("hard invariant regressed: {name}"),
         AdmissionError::ParentMismatch => "parent genome hash mismatch".into(),
-        AdmissionError::ConstitutionalScope => "constitutional scope is never auto-admissible".into(),
+        AdmissionError::ConstitutionalScope => {
+            "constitutional scope is never auto-admissible".into()
+        }
         AdmissionError::NoRollback => "no rollback target — irreversible".into(),
         AdmissionError::Expired => "mutation expired".into(),
     }
@@ -130,7 +139,10 @@ mod tests {
             identity: "org".into(),
             constitution: c.hash(),
             capability_ceiling: Authority::Governed,
-            hard_invariants: vec![HardInvariant { name: "iso".into(), holds: true }],
+            hard_invariants: vec![HardInvariant {
+                name: "iso".into(),
+                holds: true,
+            }],
             lineage: vec![],
         }
     }
@@ -141,7 +153,10 @@ mod tests {
             scope: MutationScope::RetrievalRerank,
             requested_authority: Authority::AutoReversible,
             applicability: Applicability::default(),
-            preserved_invariants: vec![HardInvariant { name: "iso".into(), holds: true }],
+            preserved_invariants: vec![HardInvariant {
+                name: "iso".into(),
+                holds: true,
+            }],
             rollback_target: Some("g0".into()),
             expires_at: None,
             signature: Some("s".into()),
@@ -177,13 +192,23 @@ mod tests {
         m.requested_authority = Authority::Constitutional; // expansion
         let v = verify(&c, &genome(&c), &m, &[], Some(&good_fitness()), 0);
         assert!(!v.admissible && !v.promotable);
-        assert!(v.violations.iter().any(|x| x.contains("authority expansion")));
+        assert!(v
+            .violations
+            .iter()
+            .any(|x| x.contains("authority expansion")));
     }
 
     #[test]
     fn prohibited_effects_block_admission() {
         let c = constitution();
-        let v = verify(&c, &genome(&c), &mutation(), &["pii_egress".into()], Some(&good_fitness()), 0);
+        let v = verify(
+            &c,
+            &genome(&c),
+            &mutation(),
+            &["pii_egress".into()],
+            Some(&good_fitness()),
+            0,
+        );
         assert!(!v.admissible);
         assert!(v.violations.iter().any(|x| x.contains("prohibited effect")));
     }

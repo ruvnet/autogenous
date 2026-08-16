@@ -22,14 +22,30 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Trigger {
-    ExactPattern { pattern: String },
-    TemporalLogicViolation { formula: String },
-    DistributionShift { metric: String, threshold_sigma: F64Bits },
-    AttractorTransition { from: String, to: String },
-    ResourceBudgetViolation { budget: String },
-    CapabilityMisuse { capability: String },
+    ExactPattern {
+        pattern: String,
+    },
+    TemporalLogicViolation {
+        formula: String,
+    },
+    DistributionShift {
+        metric: String,
+        threshold_sigma: F64Bits,
+    },
+    AttractorTransition {
+        from: String,
+        to: String,
+    },
+    ResourceBudgetViolation {
+        budget: String,
+    },
+    CapabilityMisuse {
+        capability: String,
+    },
     WitnessChainInconsistency,
-    CausalIncidentPattern { pattern_id: String },
+    CausalIncidentPattern {
+        pattern_id: String,
+    },
 }
 
 /// f64 wrapper with Eq via bit pattern (triggers must be hashable/comparable).
@@ -155,7 +171,9 @@ impl Antibody {
         if self.signature.is_none() {
             return Err(AntibodyError::Unsigned);
         }
-        self.detector.validate().map_err(AntibodyError::InvalidDetector)?;
+        self.detector
+            .validate()
+            .map_err(AntibodyError::InvalidDetector)?;
         Ok(())
     }
 
@@ -175,7 +193,11 @@ mod tests {
     use super::*;
 
     fn receipt() -> EvidenceReceipt {
-        EvidenceReceipt { witness_ref: "w1".into(), derived: true, data_policy_ref: None }
+        EvidenceReceipt {
+            witness_ref: "w1".into(),
+            derived: true,
+            data_policy_ref: None,
+        }
     }
 
     fn antibody() -> Antibody {
@@ -183,8 +205,12 @@ mod tests {
             id: "aap-1".into(),
             issuer: "deployment-a".into(),
             parent_genome_hash: "g0".into(),
-            trigger: Trigger::ExactPattern { pattern: "ignore previous instructions".into() },
-            detector: Detector::Contains { needle: "ignore previous instructions".into() },
+            trigger: Trigger::ExactPattern {
+                pattern: "ignore previous instructions".into(),
+            },
+            detector: Detector::Contains {
+                needle: "ignore previous instructions".into(),
+            },
             evidence: vec![receipt()],
             containment: Containment::Quarantine,
             proposed_mutation: None,
@@ -208,9 +234,15 @@ mod tests {
     #[test]
     fn statistical_trigger_cannot_terminate() {
         let mut a = antibody();
-        a.trigger = Trigger::DistributionShift { metric: "entropy".into(), threshold_sigma: F64Bits(3.0) };
+        a.trigger = Trigger::DistributionShift {
+            metric: "entropy".into(),
+            threshold_sigma: F64Bits(3.0),
+        };
         a.containment = Containment::Terminate;
-        assert_eq!(a.validate(0), Err(AntibodyError::StatisticalTriggerIrreversible));
+        assert_eq!(
+            a.validate(0),
+            Err(AntibodyError::StatisticalTriggerIrreversible)
+        );
         // …but it may quarantine.
         a.containment = Containment::Quarantine;
         assert_eq!(a.validate(1_900_000_000), Ok(()));
@@ -219,7 +251,11 @@ mod tests {
     #[test]
     fn raw_evidence_needs_a_policy() {
         let mut a = antibody();
-        a.evidence = vec![EvidenceReceipt { witness_ref: "w".into(), derived: false, data_policy_ref: None }];
+        a.evidence = vec![EvidenceReceipt {
+            witness_ref: "w".into(),
+            derived: false,
+            data_policy_ref: None,
+        }];
         assert_eq!(a.validate(0), Err(AntibodyError::RawEvidenceWithoutPolicy));
     }
 

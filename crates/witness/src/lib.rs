@@ -39,7 +39,10 @@ pub struct SigningAuthority {
 impl SigningAuthority {
     /// Deterministic authority from a labeled 32-byte seed.
     pub fn from_seed(id: &str, seed: [u8; 32]) -> Self {
-        SigningAuthority { id: id.into(), key: SigningKey::from_bytes(&seed) }
+        SigningAuthority {
+            id: id.into(),
+            key: SigningKey::from_bytes(&seed),
+        }
     }
 
     /// The verifying (public) key, hex-encoded — the identity signatures are
@@ -92,7 +95,11 @@ impl SigningAuthority {
 
 /// Verify a detached seal — malformed inputs return `false`, never panic.
 pub fn verify_seal(seal: &WitnessSeal) -> bool {
-    verify_hex(&seal.issuer_pubkey, seal.subject_hash.as_bytes(), &seal.signature)
+    verify_hex(
+        &seal.issuer_pubkey,
+        seal.subject_hash.as_bytes(),
+        &seal.signature,
+    )
 }
 
 /// What a witness record attests to.
@@ -215,7 +222,11 @@ mod tests {
         let sig = a.sign_hex(msg);
         assert!(verify_hex(&a.public_hex(), msg, &sig));
         // tampered message
-        assert!(!verify_hex(&a.public_hex(), b"promote candidate m-99", &sig));
+        assert!(!verify_hex(
+            &a.public_hex(),
+            b"promote candidate m-99",
+            &sig
+        ));
         // wrong key
         assert!(!verify_hex(&authority(2).public_hex(), msg, &sig));
         // malformed inputs never panic, just fail
@@ -226,16 +237,34 @@ mod tests {
     #[test]
     fn content_hash_is_stable_and_sensitive() {
         #[derive(Serialize)]
-        struct T { a: u32, b: String }
-        let x = T { a: 1, b: "hi".into() };
+        struct T {
+            a: u32,
+            b: String,
+        }
+        let x = T {
+            a: 1,
+            b: "hi".into(),
+        };
         assert_eq!(content_hash(&x), content_hash(&x));
-        assert_ne!(content_hash(&x), content_hash(&T { a: 2, b: "hi".into() }));
+        assert_ne!(
+            content_hash(&x),
+            content_hash(&T {
+                a: 2,
+                b: "hi".into()
+            })
+        );
     }
 
     #[test]
     fn witness_record_signs_and_verifies() {
         let a = authority(7);
-        let rec = WitnessRecord::signed(&a, RecordKind::Promotion, "artifact-hash", 1_800_000_000, None);
+        let rec = WitnessRecord::signed(
+            &a,
+            RecordKind::Promotion,
+            "artifact-hash",
+            1_800_000_000,
+            None,
+        );
         assert!(rec.verify());
         // mutate a field -> signature no longer valid
         let mut bad = rec.clone();
@@ -248,8 +277,20 @@ mod tests {
         let obs = authority(1);
         let ctrl = authority(2); // separate authority for the promotion step
         let r0 = WitnessRecord::signed(&obs, RecordKind::Observation, "incident-1", 100, None);
-        let r1 = WitnessRecord::signed(&obs, RecordKind::Admission, "mutation-1", 101, Some(r0.hash()));
-        let r2 = WitnessRecord::signed(&ctrl, RecordKind::Promotion, "mutation-1", 102, Some(r1.hash()));
+        let r1 = WitnessRecord::signed(
+            &obs,
+            RecordKind::Admission,
+            "mutation-1",
+            101,
+            Some(r0.hash()),
+        );
+        let r2 = WitnessRecord::signed(
+            &ctrl,
+            RecordKind::Promotion,
+            "mutation-1",
+            102,
+            Some(r1.hash()),
+        );
         assert_eq!(verify_chain(&[r0.clone(), r1.clone(), r2.clone()]), Ok(()));
         // reorder breaks the prev-link
         assert!(verify_chain(&[r0.clone(), r2.clone(), r1.clone()]).is_err());

@@ -173,9 +173,15 @@ impl FitnessVector {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AdmissionError {
     /// Requested authority exceeds the parent genome's capability ceiling.
-    AuthorityExpansion { requested: Authority, ceiling: Authority },
+    AuthorityExpansion {
+        requested: Authority,
+        ceiling: Authority,
+    },
     /// Requested authority is below what the scope requires.
-    AuthorityInsufficient { requested: Authority, required: Authority },
+    AuthorityInsufficient {
+        requested: Authority,
+        required: Authority,
+    },
     /// A hard invariant true for the parent is not preserved.
     InvariantRegressed(String),
     /// Parent hash does not match the supplied parent genome.
@@ -269,8 +275,14 @@ mod tests {
             constitution: "c0".into(),
             capability_ceiling: Authority::Governed,
             hard_invariants: vec![
-                HardInvariant { name: "no_pii_egress".into(), holds: true },
-                HardInvariant { name: "tenant_isolation".into(), holds: true },
+                HardInvariant {
+                    name: "no_pii_egress".into(),
+                    holds: true,
+                },
+                HardInvariant {
+                    name: "tenant_isolation".into(),
+                    holds: true,
+                },
             ],
             lineage: vec![],
         }
@@ -284,8 +296,14 @@ mod tests {
             requested_authority: Authority::AutoReversible,
             applicability: Applicability::default(),
             preserved_invariants: vec![
-                HardInvariant { name: "no_pii_egress".into(), holds: true },
-                HardInvariant { name: "tenant_isolation".into(), holds: true },
+                HardInvariant {
+                    name: "no_pii_egress".into(),
+                    holds: true,
+                },
+                HardInvariant {
+                    name: "tenant_isolation".into(),
+                    holds: true,
+                },
             ],
             rollback_target: Some("g0".into()),
             expires_at: Some(2_000_000_000),
@@ -316,7 +334,10 @@ mod tests {
         let mut m = mutation();
         m.scope = MutationScope::Constitutional;
         m.requested_authority = Authority::Constitutional;
-        assert_eq!(m.admissible(&parent(), 0), Err(AdmissionError::ConstitutionalScope));
+        assert_eq!(
+            m.admissible(&parent(), 0),
+            Err(AdmissionError::ConstitutionalScope)
+        );
     }
 
     #[test]
@@ -325,7 +346,9 @@ mod tests {
         m.preserved_invariants[1].holds = false; // tenant_isolation regressed
         assert_eq!(
             m.admissible(&parent(), 0),
-            Err(AdmissionError::InvariantRegressed("tenant_isolation".into()))
+            Err(AdmissionError::InvariantRegressed(
+                "tenant_isolation".into()
+            ))
         );
     }
 
@@ -350,7 +373,10 @@ mod tests {
     #[test]
     fn expired_mutations_are_refused() {
         let m = mutation();
-        assert_eq!(m.admissible(&parent(), 2_000_000_001), Err(AdmissionError::Expired));
+        assert_eq!(
+            m.admissible(&parent(), 2_000_000_001),
+            Err(AdmissionError::Expired)
+        );
     }
 
     #[test]
@@ -391,7 +417,14 @@ mod tests {
         for s in [PromptContext, RoutingBudget, RetrievalRerank, CacheMemory] {
             assert!(s.auto_promotable());
         }
-        for s in [AgentTopology, ApplicationCode, SchemaMigration, SecurityPolicy, CompilerIr, Constitutional] {
+        for s in [
+            AgentTopology,
+            ApplicationCode,
+            SchemaMigration,
+            SecurityPolicy,
+            CompilerIr,
+            Constitutional,
+        ] {
             assert!(!s.auto_promotable());
         }
     }

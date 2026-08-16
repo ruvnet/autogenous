@@ -49,8 +49,19 @@ pub struct Node {
 
 impl Node {
     /// Build a node and compute its content-addressed id.
-    pub fn new(kind: NodeKind, parents: Vec<String>, payload_hash: &str, seal: Option<WitnessSeal>) -> Self {
-        let mut n = Node { id: String::new(), kind, parents, payload_hash: payload_hash.into(), seal };
+    pub fn new(
+        kind: NodeKind,
+        parents: Vec<String>,
+        payload_hash: &str,
+        seal: Option<WitnessSeal>,
+    ) -> Self {
+        let mut n = Node {
+            id: String::new(),
+            kind,
+            parents,
+            payload_hash: payload_hash.into(),
+            seal,
+        };
         n.id = n.compute_id();
         n
     }
@@ -108,7 +119,10 @@ impl LineageGraph {
         }
         for p in &node.parents {
             if self.index_of(p).is_none() {
-                return Err(LineageError::DanglingParent { node: node.id.clone(), parent: p.clone() });
+                return Err(LineageError::DanglingParent {
+                    node: node.id.clone(),
+                    parent: p.clone(),
+                });
             }
         }
         if let Some(seal) = &node.seal {
@@ -158,7 +172,10 @@ impl LineageGraph {
             }
             for p in &n.parents {
                 if self.index_of(p).is_none() {
-                    return Err(LineageError::DanglingParent { node: n.id.clone(), parent: p.clone() });
+                    return Err(LineageError::DanglingParent {
+                        node: n.id.clone(),
+                        parent: p.clone(),
+                    });
                 }
             }
             if let Some(seal) = &n.seal {
@@ -218,7 +235,11 @@ impl Archive {
     /// Insert a candidate. Never evicts — the archive is append-only so a
     /// currently-poor descendant remains available if its niche shifts.
     pub fn insert(&mut self, node_id: &str, niche: &str, score: f64) {
-        self.entries.push(Entry { node_id: node_id.into(), niche: niche.into(), score });
+        self.entries.push(Entry {
+            node_id: node_id.into(),
+            niche: niche.into(),
+            score,
+        });
     }
 
     pub fn len(&self) -> usize {
@@ -267,9 +288,19 @@ mod tests {
         assert_eq!(g.append(g0).unwrap(), g0id);
         assert_eq!(g.len(), 1);
 
-        let m1 = Node::new(NodeKind::Mutation, vec![g0id.clone()], &content_hash(&"mutation-1"), None);
+        let m1 = Node::new(
+            NodeKind::Mutation,
+            vec![g0id.clone()],
+            &content_hash(&"mutation-1"),
+            None,
+        );
         let m1id = g.append(m1).unwrap();
-        let p2 = Node::new(NodeKind::Promotion, vec![m1id.clone()], &content_hash(&"promotion"), None);
+        let p2 = Node::new(
+            NodeKind::Promotion,
+            vec![m1id.clone()],
+            &content_hash(&"promotion"),
+            None,
+        );
         let p2id = g.append(p2).unwrap();
 
         let anc = g.ancestry(&p2id).unwrap();
@@ -280,12 +311,23 @@ mod tests {
     #[test]
     fn dangling_parents_and_bad_ids_are_refused() {
         let mut g = LineageGraph::new();
-        let orphan = Node::new(NodeKind::Mutation, vec!["nonexistent".into()], &content_hash(&"x"), None);
-        assert!(matches!(g.append(orphan), Err(LineageError::DanglingParent { .. })));
+        let orphan = Node::new(
+            NodeKind::Mutation,
+            vec!["nonexistent".into()],
+            &content_hash(&"x"),
+            None,
+        );
+        assert!(matches!(
+            g.append(orphan),
+            Err(LineageError::DanglingParent { .. })
+        ));
 
         let mut tampered = Node::new(NodeKind::Genome, vec![], &content_hash(&"g"), None);
         tampered.payload_hash = "swapped-after-id".into(); // id no longer matches
-        assert!(matches!(g.append(tampered), Err(LineageError::IdMismatch(_))));
+        assert!(matches!(
+            g.append(tampered),
+            Err(LineageError::IdMismatch(_))
+        ));
     }
 
     #[test]
@@ -298,7 +340,12 @@ mod tests {
 
         // a seal over the wrong payload is refused
         let ph2 = content_hash(&"other-genome");
-        let bad = Node::new(NodeKind::Genome, vec![], &ph2, Some(seal_for(&a, &content_hash(&"mismatch"))));
+        let bad = Node::new(
+            NodeKind::Genome,
+            vec![],
+            &ph2,
+            Some(seal_for(&a, &content_hash(&"mismatch"))),
+        );
         assert!(matches!(g.append(bad), Err(LineageError::BadSeal(_))));
     }
 
@@ -321,7 +368,13 @@ mod tests {
         let mut g = LineageGraph::new();
         let g0 = Node::new(NodeKind::Genome, vec![], &content_hash(&"g"), None);
         let g0id = g.append(g0).unwrap();
-        g.append(Node::new(NodeKind::Mutation, vec![g0id], &content_hash(&"m"), None)).unwrap();
+        g.append(Node::new(
+            NodeKind::Mutation,
+            vec![g0id],
+            &content_hash(&"m"),
+            None,
+        ))
+        .unwrap();
         let json = serde_json::to_string(&g).unwrap();
         let back: LineageGraph = serde_json::from_str(&json).unwrap();
         assert!(back.verify().is_ok());

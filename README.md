@@ -55,7 +55,7 @@ The first executable profile is the **Autogenous Antibody Package (AAP)**: a sig
 P7 (invented representations / semantic airlock) is ongoing research by definition — it has a specified contract (ADR-392 §7), not fake results.
 
 ```bash
-cargo test   # 42 tests, including the end-to-end acceptance lifecycle
+cargo test   # 62 tests, including the end-to-end acceptance lifecycle
 ```
 
 **Measured** (release, Ryzen host, `cargo run --release -p midstream-adapter --example perf`):

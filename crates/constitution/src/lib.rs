@@ -87,16 +87,22 @@ impl ConstitutionChange {
         if self.migration_path.trim().is_empty() {
             return Err(ChangeError::NoMigrationPath);
         }
-        let mut valid = 0usize;
+        // DISTINCT known signers (review finding #8: two entries from the same
+        // signer must not satisfy a 2-signature quorum). Cryptographic signature
+        // verification against pinned per-role keys is delivered by the
+        // `envelope` crate's pattern and required before any real adoption.
+        let mut distinct: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
         for (who, _sig) in &self.signatures {
-            if current.signers.iter().any(|s| s == who) {
-                valid += 1;
-            } else {
+            if !current.signers.iter().any(|s| s == who) {
                 return Err(ChangeError::UnknownSigner(who.clone()));
             }
+            distinct.insert(who.as_str());
         }
-        if valid < 2 {
-            return Err(ChangeError::InsufficientSignatures { have: valid, need: 2 });
+        if distinct.len() < 2 {
+            return Err(ChangeError::InsufficientSignatures {
+                have: distinct.len(),
+                need: 2,
+            });
         }
         Ok(())
     }
@@ -146,11 +152,17 @@ mod tests {
             effective_at: 1_800_000_000,
             migration_path: "docs/migrations/v2.md".into(),
         };
-        assert_eq!(ch.check(&c), Err(ChangeError::InsufficientSignatures { have: 1, need: 2 }));
+        assert_eq!(
+            ch.check(&c),
+            Err(ChangeError::InsufficientSignatures { have: 1, need: 2 })
+        );
         ch.signatures.push(("bob".into(), "s2".into()));
         assert_eq!(ch.check(&c), Ok(()));
         ch.signatures.push(("mallory".into(), "s3".into()));
-        assert_eq!(ch.check(&c), Err(ChangeError::UnknownSigner("mallory".into())));
+        assert_eq!(
+            ch.check(&c),
+            Err(ChangeError::UnknownSigner("mallory".into()))
+        );
     }
 
     #[test]

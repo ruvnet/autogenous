@@ -19,7 +19,10 @@ pub const STAGES: [u8; 4] = [1, 10, 50, 100];
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CanaryState {
     /// Serving `STAGES[idx]`% of traffic, awaiting measurements.
-    Serving { stage_idx: usize, healthy_observations: u32 },
+    Serving {
+        stage_idx: usize,
+        healthy_observations: u32,
+    },
     /// Fully promoted (signed).
     Promoted { signature: String },
     /// Rolled back to the parent; terminal for this candidate.
@@ -49,13 +52,21 @@ pub struct CanaryController {
 }
 
 impl CanaryController {
-    pub fn new(candidate_id: &str, rollback_target: &str, gates: HardGates, observations_per_stage: u32) -> Self {
+    pub fn new(
+        candidate_id: &str,
+        rollback_target: &str,
+        gates: HardGates,
+        observations_per_stage: u32,
+    ) -> Self {
         CanaryController {
             candidate_id: candidate_id.into(),
             rollback_target: rollback_target.into(),
             gates,
             observations_per_stage: observations_per_stage.max(1),
-            state: CanaryState::Serving { stage_idx: 0, healthy_observations: 0 },
+            state: CanaryState::Serving {
+                stage_idx: 0,
+                healthy_observations: 0,
+            },
             audit: vec![format!("start canary at {}%", STAGES[0])],
         }
     }
@@ -71,7 +82,10 @@ impl CanaryController {
     /// Feed one fitness measurement from the current stage. Deterministic.
     pub fn observe(&mut self, fitness: &FitnessVector) -> Decision {
         let (stage_idx, healthy) = match &self.state {
-            CanaryState::Serving { stage_idx, healthy_observations } => (*stage_idx, *healthy_observations),
+            CanaryState::Serving {
+                stage_idx,
+                healthy_observations,
+            } => (*stage_idx, *healthy_observations),
             _ => return Decision::Hold, // terminal states ignore input
         };
         if !fitness.passes_hard_gates(&self.gates) {
@@ -80,24 +94,41 @@ impl CanaryController {
                 "ROLLBACK at {}% -> {} ({reason})",
                 STAGES[stage_idx], self.rollback_target
             ));
-            self.state = CanaryState::RolledBack { at_stage_pct: STAGES[stage_idx], reason: reason.clone() };
+            self.state = CanaryState::RolledBack {
+                at_stage_pct: STAGES[stage_idx],
+                reason: reason.clone(),
+            };
             return Decision::RollBack { reason };
         }
         let healthy = healthy + 1;
         if healthy < self.observations_per_stage {
-            self.state = CanaryState::Serving { stage_idx, healthy_observations: healthy };
+            self.state = CanaryState::Serving {
+                stage_idx,
+                healthy_observations: healthy,
+            };
             return Decision::Hold;
         }
         // Stage complete.
         if stage_idx + 1 < STAGES.len() {
             let next = stage_idx + 1;
-            self.audit.push(format!("advance {}% -> {}%", STAGES[stage_idx], STAGES[next]));
-            self.state = CanaryState::Serving { stage_idx: next, healthy_observations: 0 };
-            Decision::Advance { to_pct: STAGES[next] }
+            self.audit.push(format!(
+                "advance {}% -> {}%",
+                STAGES[stage_idx], STAGES[next]
+            ));
+            self.state = CanaryState::Serving {
+                stage_idx: next,
+                healthy_observations: 0,
+            };
+            Decision::Advance {
+                to_pct: STAGES[next],
+            }
         } else {
             // 100% healthy — persist the completed count so `promote` can see
             // the final stage is done; promotion still requires a signature.
-            self.state = CanaryState::Serving { stage_idx, healthy_observations: healthy };
+            self.state = CanaryState::Serving {
+                stage_idx,
+                healthy_observations: healthy,
+            };
             Decision::ReadyForPromotion
         }
     }
@@ -107,11 +138,16 @@ impl CanaryController {
     /// never becomes `Promoted`.
     pub fn promote(&mut self, signature: &str) -> Result<(), String> {
         match &self.state {
-            CanaryState::Serving { stage_idx, healthy_observations }
-                if *stage_idx == STAGES.len() - 1 && *healthy_observations >= self.observations_per_stage =>
+            CanaryState::Serving {
+                stage_idx,
+                healthy_observations,
+            } if *stage_idx == STAGES.len() - 1
+                && *healthy_observations >= self.observations_per_stage =>
             {
                 self.audit.push(format!("PROMOTED (signed: {signature})"));
-                self.state = CanaryState::Promoted { signature: signature.into() };
+                self.state = CanaryState::Promoted {
+                    signature: signature.into(),
+                };
                 Ok(())
             }
             CanaryState::Promoted { .. } => Err("already promoted".into()),
@@ -167,7 +203,13 @@ mod tests {
         assert_eq!(c.stage_pct(), Some(10));
         let d = c.observe(&bad()); // injected regression
         assert!(matches!(d, Decision::RollBack { .. }));
-        assert!(matches!(c.state, CanaryState::RolledBack { at_stage_pct: 10, .. }));
+        assert!(matches!(
+            c.state,
+            CanaryState::RolledBack {
+                at_stage_pct: 10,
+                ..
+            }
+        ));
         // Terminal: further observations are ignored, promotion refused.
         assert_eq!(c.observe(&good()), Decision::Hold);
         assert!(c.promote("sig").is_err());

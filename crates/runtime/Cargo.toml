@@ -1,0 +1,21 @@
+[package]
+name = "runtime"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous runtime: the self-running observe→generate→evaluate→verify→canary→promote/rollback loop with a Clock abstraction and measured SLO timing (ADR-392 §9/§14, ADR-393 acceptance, gap 7)."
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+constitution = { path = "../constitution" }
+verifier = { path = "../verifier" }
+antibody = { path = "../antibody" }
+evaluator = { path = "../evaluator" }
+promotion = { path = "../promotion" }
+lineage = { path = "../lineage" }
+witness = { path = "../witness" }
+generator = { path = "../generator", package = "autogenous-generator" }
+envelope = { path = "../envelope" }
+serde = { workspace = true }

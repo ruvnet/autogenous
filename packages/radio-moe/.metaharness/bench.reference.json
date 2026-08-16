@@ -1,0 +1,38 @@
+{
+  "_note": "REFERENCE suite — hand-authored, NOT a @metaharness/darwin-generated bench.json. `darwin bench create .` stamps a taskHash and `darwin bench verify` REJECTS any hand-edited suite as tampered (grounded: agent-harness-generator / rupixel/docs/BENCH.md). This file documents radio-moe's evolvable surface, objectives, baseline, and score command so a real suite can be generated and reviewed against it. See docs/METAHARNESS.md.",
+  "name": "radio-moe-independence",
+  "target": "packages/radio-moe",
+  "metaharness": { "package": "@metaharness/darwin", "verifiedVersion": "0.7.1" },
+  "freeze": "Source code + algorithm are FROZEN. Only the evolveParameters below change. Signature/replay/sequence checks, fail-closed semantics, and the hard gates are constitutional constants (mesh-evolve.ts HARD) that evolution can never touch.",
+  "evolveParameters": {
+    "sameProvider": { "axis": "IndependenceWeights.sameProvider penalty", "min": 0.0, "max": 0.8, "default": 0.4, "champion": 0.6248072216752918 },
+    "sameArch": { "axis": "IndependenceWeights.sameArch penalty", "min": 0.0, "max": 0.8, "default": 0.35, "champion": 0.4386243325192481 },
+    "sameSize": { "axis": "IndependenceWeights.sameSize penalty", "min": 0.0, "max": 0.8, "default": 0.1, "champion": 0.1 },
+    "sourceJaccard": { "axis": "IndependenceWeights.sourceJaccard penalty", "min": 0.0, "max": 0.8, "default": 0.15, "champion": 0.15 },
+    "sameAccuracyBand": { "axis": "IndependenceWeights.sameAccuracyBand penalty (arXiv:2506.07962)", "min": 0.0, "max": 0.8, "default": 0.2, "note": "EXCLUDED from in-repo flywheel mutation until the accuracy-band axis gets its own bench (ADR-397 research §Update)." },
+    "quorumThreshold": { "axis": "action quorum on effectiveSupport", "min": 1.5, "max": 4.0, "default": 2.0, "champion": 1.8682114632800222 }
+  },
+  "ceilings": { "weightMin": 0.0, "weightMax": 0.8, "quorumMin": 1.5, "quorumMax": 4.0, "source": "mesh-evolve.ts CEILINGS" },
+  "score": {
+    "command": "BENCH_JSON=1 npm run bench:fusion",
+    "metricsPath": "metrics",
+    "note": "Decision-quality floor at the current weights. Parameter-SENSITIVITY (how weights move the correlated/diverse separation) is scored by the in-repo flywheel fitness `evaluate()` in mesh-evolve.ts — see docs/METAHARNESS.md."
+  },
+  "objectives": [
+    { "metric": "metrics.correlated_gain_vs_best", "goal": "maximize", "description": "lineage-weighted fused accuracy minus best-single on the correlated-error corpus" },
+    { "metric": "metrics.independent_gain_vs_best", "goal": "maximize", "description": "same, on the independent-error corpus" }
+  ],
+  "constraints": [
+    { "name": "hard-gates", "must": "mesh-evolve.ts hardGatesPass === true (familyStack < 2.0 AND diversePair >= 1.7 AND topicSeparation >= 4 AND stack can never quorum AND diversity still can)" },
+    { "name": "quality-floor", "must": "metrics.correlated_gain_vs_best >= 0 (fusion never worse than the strongest single expert on correlated errors)" }
+  ],
+  "baseline": {
+    "source": ".harness/mesh-flywheel/champion.json (seed 23, 30 generations)",
+    "separation": 1.25,
+    "hardGatesPass": true,
+    "correlated_gain_vs_best": 0.25,
+    "independent_gain_vs_best": 0.3333333333333333
+  },
+  "removable": true,
+  "removability": "radio-moe builds, tests, and runs with ZERO @metaharness/darwin dependency. The in-repo flywheel (mesh-evolve.ts, `npm run evolve`) is the self-contained, removable evolver of exactly these parameters (ADR-400). Darwin output would be read-only; nothing in the runtime reads it automatically. `.metaharness/` is dev-only and can be deleted with no runtime impact."
+}

@@ -75,22 +75,32 @@ The lifecycle test proves the flow offline: a novel prompt attack becomes an ant
 
 ## Streaming mixture of agents (`packages/radio-moe`)
 
-The TypeScript companion (ADR-395–399): a **real-time streaming, P2P mixture of
+The TypeScript companion (ADR-395–402): a **real-time streaming, P2P mixture of
 agents**. AgentRadio (`@metaharness/radio`) is the metadata-only local control
 plane; an **ed25519-signed** transport carries typed `AgentFrame`s; experts run
 on real backends — `claude -p` / `codex exec` subprocess streaming, **OpenRouter**
-and **Gemini-on-GCP** SSE adapters. Every run is packaged as an **RVF-style
-witness trajectory** (hash-chained, tamper-evident). A `create-agent-harness`
-pod (e.g. [`kimi-k3-harness`](https://github.com/ruvnet/metaharness/tree/main/kimi-k3-harness))
-loads directly as mesh experts — its architect/implementer/reviewer/test-writer
-roles stream concurrently as one signed mixture.
+and **Gemini-on-GCP** SSE adapters. Signed frames fold into a `MixtureState`,
+release through an independence-weighted `ActionGate`, and evolve via a governed
+flywheel. Every run is packaged as an **RVF-style witness trajectory**
+(hash-chained, tamper-evident).
+
+Docs: **[README](packages/radio-moe/README.md)** ·
+**[User Guide](packages/radio-moe/docs/USER-GUIDE.md)** ·
+**[API / SDK](packages/radio-moe/docs/API.md)** ·
+**[Custom MetaHarness](packages/radio-moe/docs/METAHARNESS.md)**.
 
 ```bash
 cd packages/radio-moe
-npm test        # 30 offline deterministic tests (incl. adversarial E2E)
-npm run mesh    # 3-peer mesh — offline fake experts, or LIVE with OPENROUTER_API_KEY
-npm run bench   # sign/verify/fold/chain throughput
+npm test              # 87 offline deterministic tests (incl. adversarial E2E)
+npm run mesh          # 3-peer mesh — offline fake experts, or LIVE with OPENROUTER_API_KEY
+npm run bench:fusion  # does the fused mixture beat the strongest single expert?
 ```
+
+**Fusion measured** (`npm run bench:fusion`, deterministic): fusing *independent*
+experts beats the strongest single expert (+33.3%); a confidently-wrong
+same-lineage cluster drags naive-vote **and** sourceId de-dup *below* best-single,
+and only **lineage-weighted `effectiveSupport`** recovers it (+25%). Independence
+must be measured by lineage, not just shared sources (ADR-401).
 
 **Live-verified** (2026-08-16): single-model — 107 signed frames from 3
 concurrent `gpt-4o-mini` streams in **1.77 s**, 107/107 verified. Heterogeneous —

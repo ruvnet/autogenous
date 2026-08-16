@@ -188,9 +188,22 @@ function printReport(r: CorpusReport): void {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const independent = runFusionBench(INDEPENDENT_CORPUS, 'INDEPENDENT errors');
   const correlated = runFusionBench(CORRELATED_CORPUS, 'CORRELATED errors');
-  printReport(independent);
-  printReport(correlated);
-  console.log(
+  // Machine-readable metrics for a MetaHarness/Darwin score run (see docs/METAHARNESS.md).
+  if (process.env.BENCH_JSON) {
+    console.log(JSON.stringify({
+      metrics: {
+        independent_fused_accuracy: independent.lineageMixture,
+        independent_gain_vs_best: independent.lineageVsBest,
+        correlated_fused_accuracy: correlated.lineageMixture,
+        correlated_gain_vs_best: correlated.lineageVsBest,
+        correlated_gain_vs_naive: correlated.lineageVsNaive,
+      },
+      reports: { independent, correlated },
+    }));
+  } else {
+    printReport(independent);
+    printReport(correlated);
+    console.log(
     `\nThesis:\n` +
       `  1. INDEPENDENT errors → fusion beats the strongest single expert ` +
       `(${independent.lineageVsBest > 0 ? 'PASS' : 'FAIL'}: +${pct(independent.lineageVsBest)}).\n` +
@@ -201,5 +214,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       `(${correlated.lineageVsBest >= 0 ? 'PASS' : 'FAIL'}: ${correlated.lineageVsBest >= 0 ? '+' : ''}${pct(correlated.lineageVsBest)}) ` +
       `and beats naive-vote (${correlated.lineageVsNaive > 0 ? 'PASS' : 'FAIL'}: +${pct(correlated.lineageVsNaive)}).\n` +
       `  → Independence must be measured by LINEAGE, not just shared sourceIds (ADR-401 cap 3 / false-consensus invariant).`,
-  );
+    );
+  }
 }

@@ -1,0 +1,42 @@
+{
+  "name": "radio-moe",
+  "version": "0.1.0",
+  "description": "Radio real-time streaming peer expert mesh \u2014 bounded, signed, constitution-pinned distributed MoE. @metaharness/radio is the metadata-only control plane; a signed direct peer transport carries expert streams. True logit mixing where tokenizers match; safe text-primary racing otherwise.",
+  "type": "module",
+  "license": "MIT",
+  "author": "rUv",
+  "keywords": [
+    "mixture-of-experts",
+    "moe",
+    "p2p",
+    "webrtc",
+    "streaming",
+    "realtime",
+    "agents",
+    "gating",
+    "top-k-routing",
+    "pubsub"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "demo": "node --import tsx examples/local-mesh.ts"
+  },
+  "dependencies": {
+    "@metaharness/radio": "^0.1.0"
+  },
+  "optionalDependencies": {
+    "trystero": "^0.25.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

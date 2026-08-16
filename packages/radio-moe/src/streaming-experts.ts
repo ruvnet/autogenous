@@ -136,23 +136,23 @@ export const claudeStreamParser: EventParser = (event) => {
   return [];
 };
 
-/** Codex `exec --json` parser (provisional — validate against a live capture).
- *  Codex emits JSONL events; this maps the common text/delta shapes to `claim`
- *  frames and a completion event to a confident final claim. */
+/** Codex `exec --json` parser — validated against a live capture (2026-08-16):
+ *  events are {type:'item.completed', item:{type:'agent_message', text}} for
+ *  the answer, plus thread/turn lifecycle events; item.type 'error' is noise. */
 export const codexStreamParser: EventParser = (event) => {
   const e = event as Record<string, unknown>;
-  const msg = (e.msg ?? e.message ?? e) as Record<string, unknown>;
-  const type = String(e.type ?? msg.type ?? '');
-  // streamed text: look for a delta/text field on the event or its msg.
-  const delta = (msg.delta ?? msg.text ?? e.delta ?? e.text) as unknown;
-  if (typeof delta === 'string' && delta.length && !type.includes('completed')) {
-    return [{ kind: 'claim', value: delta, confidence: 0.4, uncertainty: 0.6 }];
+  const type = String(e.type ?? '');
+  if (type === 'item.completed') {
+    const item = e.item as Record<string, unknown> | undefined;
+    if (item?.type === 'agent_message' && typeof item.text === 'string' && item.text.length) {
+      return [{ kind: 'claim', value: item.text, confidence: 0.85, uncertainty: 0.2 }];
+    }
+    return [];
   }
-  if (type.includes('completed') || type === 'item.completed' || type === 'turn.completed') {
-    const finalText = (msg.text ?? msg.content ?? '') as unknown;
-    return typeof finalText === 'string' && finalText.length
-      ? [{ kind: 'claim', value: finalText, confidence: 0.85, uncertainty: 0.2 }]
-      : [];
+  // streamed deltas (some codex builds emit item.delta with partial text)
+  const delta = (e.delta ?? (e.item as Record<string, unknown> | undefined)?.delta) as unknown;
+  if (typeof delta === 'string' && delta.length) {
+    return [{ kind: 'claim', value: delta, confidence: 0.4, uncertainty: 0.6 }];
   }
   return [];
 };

@@ -93,7 +93,8 @@ test('claude + codex parsers map real event shapes to claim frames', () => {
   assert.equal(claudeResult[0]!.cost, 0.002);
   assert.deepEqual(claudeStreamParser({ type: 'system', subtype: 'init' }), [], 'init ignored');
 
-  // Codex JSONL: a text delta event.
-  const codexDelta = codexStreamParser({ type: 'item.delta', msg: { delta: 'tok' } });
-  assert.equal(codexDelta[0]!.value, 'tok');
+  // Codex JSONL (live-captured shape): item.completed with an agent_message.
+  const codexFinal = codexStreamParser({ type: 'item.completed', item: { type: 'agent_message', text: 'OK' } });
+  assert.equal(codexFinal[0]!.value, 'OK');
+  assert.deepEqual(codexStreamParser({ type: 'item.completed', item: { type: 'error', message: 'x' } }), []);
 });

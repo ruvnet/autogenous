@@ -36,8 +36,29 @@ export interface AgentFrame {
   evidenceHashes: string[];
   /** Metered cost of producing this frame. */
   cost: number;
+  /** In-frame replay binding (mesh-designed, dogfood-1 architect frame): the
+   *  RECEIVER-issued per-stream nonce, echoed by the producer inside the signed
+   *  frame. A frame captured on stream A cannot verify on stream B — the
+   *  attacker cannot produce a signature covering B's nonce. Optional for
+   *  backward compatibility; when present it is under the signature. */
+  streamNonce?: string;
   /** ed25519 signature over the canonical frame-without-signature (hex). */
   signature: string;
+}
+
+/** Consumption-point gate for in-frame replay binding: accepts a frame only if
+ *  it echoes the nonce THIS gate issued and its (agentId, step) is unseen. */
+export class StreamNonceGate {
+  private readonly seen = new Set<string>();
+  constructor(readonly nonce: string) {}
+
+  accept(frame: AgentFrame): boolean {
+    if (frame.streamNonce !== this.nonce) return false;
+    const key = `${frame.agentId}#${frame.step}`;
+    if (this.seen.has(key)) return false;
+    this.seen.add(key);
+    return true;
+  }
 }
 
 /** Recursively key-sorted JSON, rejecting prototype-pollution keys, as bytes.

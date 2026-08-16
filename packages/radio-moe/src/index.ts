@@ -135,6 +135,24 @@ export {
 // Deterministic relevance scoring for the mixture's r_i dimension (ADR-397).
 export { RelevanceScorer, tokenize, bagCosine } from './relevance.js';
 
+// Mesh-designed modules (dogfood-1 — the mesh designed its own improvements):
+export { StreamNonceGate } from './agent-frame.js';
+export { partitionEvidence, type EvidenceRef, type Feed, type FeedMode } from './evidence-feeds.js';
+export {
+  pairIndependence,
+  effectiveSupport,
+  jaccard,
+  buildCert,
+  counterSign,
+  verifyCert,
+  DEFAULT_INDEPENDENCE_WEIGHTS,
+  type ModelLineage,
+  type LineageSupport,
+  type IndependenceWeights,
+  type CompletionCert,
+  type CertPolicy,
+} from './lineage-independence.js';
+
 // Direct signed TCP peer transport (ADR-395/396 reference adapter — integrity
 // only; production requires QUIC+mTLS or equivalent).
 export {

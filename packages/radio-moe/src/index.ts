@@ -131,3 +131,6 @@ export {
   roleCapability,
   type HarnessAgentDef,
 } from './harness-experts.js';
+
+// Deterministic relevance scoring for the mixture's r_i dimension (ADR-397).
+export { RelevanceScorer, tokenize, bagCosine } from './relevance.js';

@@ -21,6 +21,7 @@ import { openRouterExpert } from '../src/http-experts.js';
 import { packageTrajectory, verifyTrajectory } from '../src/rvf-trajectory.js';
 import { verifyFrame, type AgentFrame } from '../src/agent-frame.js';
 import { MixtureState, signContributionInput, type MixtureSnapshot } from '../src/mixture.js';
+import { RelevanceScorer } from '../src/relevance.js';
 
 const PROMPT = 'In one sentence: why keep routing and authority separate in an agent mesh?';
 
@@ -72,6 +73,7 @@ const mixture = new MixtureState({
   topK: peers.length,
 });
 let lastSnapshot: MixtureSnapshot | null = null;
+const scorer = new RelevanceScorer(PROMPT);
 
 const n = await endlessMixLoop(
   peers.map((p) => p.expert),
@@ -91,7 +93,7 @@ const n = await endlessMixLoop(
         relation: 'support',
         sourceIds: [`${frame.agentId}`],
         quality: frame.confidence,
-        relevance: frame.confidence,
+        relevance: scorer.score(frame),
         evidence: Math.min(1, frame.evidenceHashes.length / 3),
         cost: Math.min(1, frame.cost),
         latency: 0.2,

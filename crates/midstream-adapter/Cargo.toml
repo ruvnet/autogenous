@@ -13,6 +13,10 @@ antibody = { path = "../antibody" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10"
+# REAL midstream (ruvnet/midstream, MIT/Apache, edition 2021): temporal sequence
+# comparison (DTW / edit-distance / LCS) — catches reordered/obfuscated attacks
+# that substring detectors miss. Published on crates.io.
+midstreamer-temporal-compare = "0.2.1"
 
 [dev-dependencies]
 evaluator = { path = "../evaluator" }

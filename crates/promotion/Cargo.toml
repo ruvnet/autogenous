@@ -17,3 +17,4 @@ constitution = { path = "../constitution" }
 verifier = { path = "../verifier" }
 antibody = { path = "../antibody" }
 evaluator = { path = "../evaluator" }
+witness = { path = "../witness" }

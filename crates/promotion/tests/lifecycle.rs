@@ -141,3 +141,27 @@ fn injected_regression_triggers_automatic_rollback_mid_canary() {
     assert!(matches!(canary.state, CanaryState::RolledBack { at_stage_pct: 10, .. }));
     assert!(canary.promote("sig").is_err(), "rolled-back candidate must never promote");
 }
+
+#[test]
+fn full_lifecycle_emits_a_verifiable_signed_witness_chain() {
+    use witness::{content_hash, verify_chain, RecordKind, SigningAuthority, WitnessRecord};
+    // Separate authorities per role (ADR-392 §11): observer, judge, controller.
+    let observer = SigningAuthority::from_seed("midstream-observer", [1u8; 32]);
+    let judge = SigningAuthority::from_seed("evaluator-judge", [2u8; 32]);
+    let controller = SigningAuthority::from_seed("promotion-controller", [3u8; 32]);
+
+    let incident_hash = content_hash(&"incident: split-chunk prompt injection");
+    let mutation_hash = content_hash(&"mutation: rerank + quarantine antibody");
+
+    let r0 = WitnessRecord::signed(&observer, RecordKind::Observation, &incident_hash, 100, None);
+    let r1 = WitnessRecord::signed(&judge, RecordKind::Evaluation, &mutation_hash, 101, Some(r0.hash()));
+    let r2 = WitnessRecord::signed(&controller, RecordKind::Promotion, &mutation_hash, 102, Some(r1.hash()));
+    let chain = [r0, r1, r2];
+
+    // The full provenance is reconstructable and every link verifies (§14: complete
+    // lineage reconstruction for every active phenotype).
+    assert_eq!(verify_chain(&chain), Ok(()));
+    // Three distinct signing authorities -> no single key can forge the record set.
+    assert_ne!(chain[0].issuer_pubkey, chain[1].issuer_pubkey);
+    assert_ne!(chain[1].issuer_pubkey, chain[2].issuer_pubkey);
+}

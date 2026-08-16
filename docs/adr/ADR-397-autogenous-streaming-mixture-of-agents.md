@@ -1,7 +1,7 @@
 # ADR-397 — Autogenous Streaming Mixture of Agents (MidStream mixture plane)
 
 - Status: Accepted for reference implementation (design + phased build)
-- Date: 2026-08-16
+- Date: 2026-08-16 · Updated: 2026-08-16 — novelty claim adversarially verified (see §Novelty)
 - Decision owners: Autogenous maintainers
 - Related: ADR-395, ADR-396 (this repo); ruvnet/midstream; @metaharness/radio (AgentRadio)
 
@@ -172,6 +172,26 @@ The defensible claim is therefore **"an open, governed peer-to-peer streaming
 mixture of agent trajectories that continuously combines signed claims, evidence,
 confidence, and action proposals while execution is underway."** Do **not** claim
 first P2P agent system, first MoA, or first streaming agent protocol.
+
+**Adversarially verified (2026-08-16)** — a 24-source, 25-claim deep-research
+pass (3 independent verification votes per claim; 21 confirmed / 3 refuted /
+1 unverified) supports this positioning per pillar: continuous claim-level
+mid-stream fusion — **genuinely novel** in the surveyed corpus; signed frame
+provenance — **partially done** (ANP signs per-message with ECDSA-secp256r1;
+AIP proves ed25519 at 0.049 ms/verify; **no deployed interop protocol mandates
+per-message claim provenance**, and MCP misbinding is measured at VR up to
+1.0); independence-weighted quorum — **empirically motivated, unbuilt
+anywhere** (ICML 2025: ~60% same-wrong-answer agreement; provider/architecture/
+size predict correlation); governed action release — **closest to done** (AIP),
+whose two conceded gaps (self-reported completions, TTL-window replay) our
+quorum-before-release design targets. Full findings, refuted claims (do not
+repeat: ANP proxy-side verification; "A2A wholly unverifiable"; the Knostic
+~2,000-servers figure), caveats, and derived build items:
+[docs/research/2026-08-16-streaming-mixture-sota.md](../research/2026-08-16-streaming-mixture-sota.md).
+Design mandates folded in from the same pass: **feed experts deliberately
+decorrelated evidence** (shared context accelerates diversity collapse —
+ReM-MoA ablation), and **fusion positioning must be selective** (naive
+per-token ensembling degrades long-form output).
 
 ## Acceptance test
 

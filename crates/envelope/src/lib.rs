@@ -25,7 +25,7 @@
 //! requires a **proof reference for every preserved invariant** — returning
 //! *every* independent violation, not just the first.
 
-use agl_types::{Genome, HardInvariant, Mutation};
+use agl_types::{Authority, Genome, HardInvariant, Mutation, MutationScope};
 use antibody::Detector;
 use constitution::Constitution;
 use evaluator::{replay_packaged, wilson95, Corpus};
@@ -45,8 +45,49 @@ pub struct InvariantProof {
     pub invariant: String,
     /// e.g. `"property_test"`, `"model_check"`, `"capability_analysis"`, `"signed_measurement"`.
     pub kind: String,
-    /// Content hash / receipt id the verifier (or an auditor) resolves.
+    /// **Content hash of the [`ProofArtifact`]** the verifier resolves and
+    /// independently re-derives (finding #4). Must equal `artifact.reference()`.
     pub reference: String,
+}
+
+/// The actual, content-addressed evidence a [`InvariantProof`] points at
+/// (finding #4 — independent *resolution*, not just a reference). A
+/// `capability_analysis` artifact records the exact facts the analysis examined:
+/// the mutation's requested authority + scope and the parent's ceiling. The
+/// verifier resolves it by content hash, confirms it examined **this exact**
+/// mutation/parent (so a proof for a different candidate can't be reused), and
+/// re-derives its conclusion — it never trusts the artifact's say-so.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProofArtifact {
+    pub invariant: String,
+    pub kind: String,
+    pub examined_authority: Authority,
+    pub examined_scope: MutationScope,
+    pub parent_ceiling: Authority,
+}
+
+impl ProofArtifact {
+    /// The content hash an [`InvariantProof::reference`] must equal.
+    pub fn reference(&self) -> String {
+        content_hash(self)
+    }
+
+    /// Independent re-derivation: do the recorded facts (a) match the *actual*
+    /// manifest + parent, and (b) *imply* the invariant is preserved? A
+    /// `capability_analysis` proves preservation only when the mutation does not
+    /// expand authority beyond the parent ceiling; it is not sound for scopes
+    /// that themselves govern security/constitutional policy (those need a
+    /// stronger proof kind the verifier does not yet resolve, so they reject).
+    fn establishes(&self, invariant: &str, manifest: &CandidateManifest, parent: &Genome) -> bool {
+        self.kind == "capability_analysis"
+            && self.invariant == invariant
+            && self.examined_authority == manifest.mutation.requested_authority
+            && self.examined_scope == manifest.mutation.scope
+            && self.parent_ceiling == parent.capability_ceiling
+            && self.examined_authority <= self.parent_ceiling
+            && self.examined_scope != MutationScope::SecurityPolicy
+            && self.examined_scope != MutationScope::Constitutional
+    }
 }
 
 /// The content-addressed candidate. Its hash commits to the mutation, the exact
@@ -80,11 +121,6 @@ impl CandidateManifest {
     }
     pub fn candidate_hash(&self) -> String {
         content_hash(self)
-    }
-    fn proves(&self, invariant: &str) -> bool {
-        self.invariant_proofs
-            .iter()
-            .any(|p| p.invariant == invariant && !p.reference.trim().is_empty())
     }
 }
 
@@ -242,14 +278,20 @@ pub enum Reject {
     ControllerNotPinned,
     CandidateHashMismatch,
     ReceiptHashesMismatch,
-    TooFewJudges { have: usize, need: usize },
+    TooFewJudges {
+        have: usize,
+        need: usize,
+    },
     JudgesNotDistinct,
     JudgeNotPinned(String),
     ReceiptBadSignature(String),
     ReceiptWrongCandidate(String),
     ReceiptWrongParent(String),
     ReceiptCorpusMismatch,
-    ReceiptTooFewSamples { have: usize, need: usize },
+    ReceiptTooFewSamples {
+        have: usize,
+        need: usize,
+    },
     NotBetterThanParent,
     InferiorOnProtectedDimension(String),
     GateSafety(f64),
@@ -257,13 +299,19 @@ pub enum Reject {
     GateLatency(f64),
     ProhibitedEffect(String),
     RollbackMissingOrSelf,
+    /// No proof reference for a preserved invariant (finding #4).
     InvariantUnproven(String),
+    /// A proof reference that resolves to no supplied artifact (finding #4).
+    ProofUnresolved(String),
+    /// A resolved proof artifact whose independently-re-derived facts do not
+    /// establish the invariant for this exact candidate (finding #4).
+    ProofDoesNotEstablish(String),
     Inadmissible(String),
 }
 
 /// The closed check. Returns **every** violation; an empty vec means the
 /// candidate is cryptographically admissible and promotable.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 pub fn verify_promotion(
     constitution: &Constitution,
     parent: &Genome,
@@ -271,6 +319,7 @@ pub fn verify_promotion(
     receipts: &[EvaluationReceipt],
     envelope: &PromotionEnvelope,
     pins: &RolePins,
+    proof_artifacts: &[ProofArtifact],
     now: u64,
 ) -> Vec<Reject> {
     let mut rej = Vec::new();
@@ -389,10 +438,32 @@ pub fn verify_promotion(
         _ => rej.push(Reject::RollbackMissingOrSelf),
     }
 
-    // --- invariants must carry proofs (finding #4) ---
+    // --- invariants: resolve + INDEPENDENTLY re-derive each proof (finding #4) ---
     for inv in &parent.hard_invariants {
-        if inv.holds && !manifest.proves(&inv.name) {
+        if !inv.holds {
+            continue;
+        }
+        // 1. A proof reference must exist for the invariant.
+        let proof = manifest
+            .invariant_proofs
+            .iter()
+            .find(|p| p.invariant == inv.name && !p.reference.trim().is_empty());
+        let Some(proof) = proof else {
             rej.push(Reject::InvariantUnproven(inv.name.clone()));
+            continue;
+        };
+        // 2. Resolve the referenced artifact by content hash (content-addressed —
+        //    a reference that points at nothing, or at a swapped artifact, fails).
+        let artifact = proof_artifacts
+            .iter()
+            .find(|a| a.reference() == proof.reference);
+        let Some(artifact) = artifact else {
+            rej.push(Reject::ProofUnresolved(inv.name.clone()));
+            continue;
+        };
+        // 3. Independently re-derive that it establishes THIS candidate's invariant.
+        if !artifact.establishes(&inv.name, manifest, parent) {
+            rej.push(Reject::ProofDoesNotEstablish(inv.name.clone()));
         }
     }
 

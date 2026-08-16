@@ -60,7 +60,7 @@ healthy restore.
 | 1 | decorative promotion signature | **Closed** — signed envelope, pinned controller key, empty rejected |
 | 2 | evaluator output trusted | **Closed** — signed receipts from ≥2 pinned judges, content-bound |
 | 3 | "beats parent" missing | **Closed** — receipts carry parent results; improvement + non-inferiority required |
-| 4 | invariants self-asserted | **Partly closed** — proof *references* required (bare booleans rejected); independent *resolution* of the referenced artifact is the tracked next depth |
+| 4 | invariants self-asserted | **Closed** — each preserved invariant carries a `ProofArtifact` (a `capability_analysis` recording the exact authority/scope/ceiling examined). `verify_promotion` **resolves** it by content hash (a reference pointing at nothing → `ProofUnresolved`) and **independently re-derives** that it examined *this exact* candidate and that its facts imply preservation (an artifact for a different mutation, or an unsound scope → `ProofDoesNotEstablish`) — never trusting the artifact's say-so |
 | 5 | effects caller-supplied | **Closed** — effects live inside the content-addressed manifest |
 | 6 | rollback represented not executed | **Closed** — the `deployment` crate's two-phase `verified_rollback` *commands* restoration through a `DeploymentAdapter`, confirms the active artifact hash **and** health, and emits an **ed25519-signed `RollbackReceipt`**; the canary sets `rolled_back`/`slos_met` only on a confirmed healthy restore (a failed or degraded restore yields no receipt and fails the SLO) |
 | 7 | rolling-window dup incidents / raw excerpt | **Closed** — `midstream-adapter` now **edge-triggers** (fires only on the false→true rising edge per antibody, re-arming on the falling edge, so a match lingering in the rolling window no longer re-emits per chunk); the raw excerpt is replaced by a **keyed `HMAC-SHA256` fingerprint** that correlates occurrences without carrying the matched text |
@@ -78,15 +78,20 @@ a verified envelope) that **beats the parent**, with a verified lineage chain an
 an injected regression rolling back within the SLO. `midstream-adapter` proves
 edge-triggering (a match lingering in the rolling window fires once, re-arms on
 the falling edge) and keyed-fingerprint correlation (same key + match → same
-fingerprint; different key → different; raw text never carried). 68 tests;
-`cargo audit`, `fmt --check`, and `clippy -D warnings` all clean.
+fingerprint; different key → different; raw text never carried). `envelope`
+proves proof **resolution** (a reference that resolves to no artifact rejects)
+and independent **re-derivation** (an artifact examining a different mutation
+does not establish the invariant). 70 tests; `cargo audit`, `fmt --check`, and
+`clippy -D warnings` all clean.
 
-## Next (per the review's phased plan)
+## Next (all 9 review findings closed)
 
-**Finding #4 is the last remaining item:** independent *resolution* of the
-invariant proof references — the referenced artifact is required but not yet
-independently *re-derived*. Then: fold the pinned role keys into `Constitution`
-itself; raise the receipt `MIN_SAMPLES` floor toward the review's 100k for
-production profiles; back `DeploymentAdapter` with a real router/orchestrator
-(the `InMemoryAdapter` is the deterministic reference — the trait is the seam a
-production surface implements).
+**Every finding in the security review is now Closed.** Remaining hardening is
+follow-up beyond the review's list: fold the pinned role keys into
+`Constitution` itself (they currently live in `RolePins`); raise the receipt
+`MIN_SAMPLES` floor toward the review's 100k for production profiles; back
+`DeploymentAdapter` with a real router/orchestrator (the `InMemoryAdapter` is
+the deterministic reference — the trait is the seam a production surface
+implements); and extend `ProofArtifact` with the stronger proof *kinds*
+(`property_test`, `model_check`) so `SecurityPolicy`-scope mutations can prove
+preservation rather than being refused.

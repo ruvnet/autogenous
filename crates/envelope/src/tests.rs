@@ -60,49 +60,28 @@ fn mutation(parent_hash: &str, authority: Authority, rollback: Option<String>) -
     }
 }
 
-/// A fully-formed, cryptographically-closed candidate that SHOULD pass.
-fn clean_case() -> (
-    Constitution,
-    Genome,
-    CandidateManifest,
-    Vec<EvaluationReceipt>,
-    PromotionEnvelope,
-    RolePins,
-) {
-    let c = constitution();
-    let p = parent(&c);
+/// Sign a full receipt/envelope/pins closure around `manifest` — the boilerplate
+/// shared by the positive tests.
+fn sign_closure(
+    c: &Constitution,
+    p: &Genome,
+    manifest: &CandidateManifest,
+    candidate: &Detector,
+) -> (Vec<EvaluationReceipt>, PromotionEnvelope, RolePins) {
     let cp = corpus();
-
-    let candidate = Detector::Contains {
-        needle: "ignore previous instructions".into(),
-    };
     let parent_detector = Detector::Contains {
         needle: "zzz-never-matches-anything".into(),
     };
-
-    let manifest = CandidateManifest::from_parts(
-        mutation(&p.hash, Authority::AutoReversible, Some(p.hash.clone())),
-        &candidate,
-        vec![], // no prohibited effects
-        vec![],
-        vec![InvariantProof {
-            invariant: "tenant_isolation".into(),
-            kind: "capability_analysis".into(),
-            reference: content_hash(&"iso-proof-artifact"),
-        }],
-    );
     let cand_hash = manifest.candidate_hash();
     let parent_hash = content_hash(&p.hash);
-
-    let judge1 = SigningAuthority::from_seed("judge-1", [1u8; 32]);
-    let judge2 = SigningAuthority::from_seed("judge-2", [2u8; 32]);
-    let controller = SigningAuthority::from_seed("controller", [3u8; 32]);
-
+    let j1 = SigningAuthority::from_seed("judge-1", [1u8; 32]);
+    let j2 = SigningAuthority::from_seed("judge-2", [2u8; 32]);
+    let ctrl = SigningAuthority::from_seed("controller", [3u8; 32]);
     let r1 = evaluate_and_sign(
-        &judge1,
+        &j1,
         &cand_hash,
         &parent_hash,
-        &candidate,
+        candidate,
         &parent_detector,
         &cp,
         "corpus-v1",
@@ -111,10 +90,10 @@ fn clean_case() -> (
         NOW,
     );
     let r2 = evaluate_and_sign(
-        &judge2,
+        &j2,
         &cand_hash,
         &parent_hash,
-        &candidate,
+        candidate,
         &parent_detector,
         &cp,
         "corpus-v1",
@@ -123,37 +102,120 @@ fn clean_case() -> (
         NOW,
     );
     let receipts = vec![r1, r2];
-
-    let envelope = PromotionEnvelope::signed(
-        &controller,
-        &c.hash(),
-        &cand_hash,
-        &receipts,
-        "nonce-xyz",
-        NOW,
-        600,
-    );
-
+    let env = PromotionEnvelope::signed(&ctrl, &c.hash(), &cand_hash, &receipts, "nonce", NOW, 600);
     let pins = RolePins {
-        judges: vec![judge1.public_hex(), judge2.public_hex()],
-        controllers: vec![controller.public_hex()],
+        judges: vec![j1.public_hex(), j2.public_hex()],
+        controllers: vec![ctrl.public_hex()],
     };
-    (c, p, manifest, receipts, envelope, pins)
+    (receipts, env, pins)
+}
+
+/// The capability-analysis artifact that genuinely establishes `tenant_isolation`
+/// for the clean candidate (examined the same AutoReversible / RetrievalRerank
+/// mutation against the parent's Governed ceiling).
+fn clean_artifact() -> ProofArtifact {
+    ProofArtifact {
+        invariant: "tenant_isolation".into(),
+        kind: "capability_analysis".into(),
+        examined_authority: Authority::AutoReversible,
+        examined_scope: MutationScope::RetrievalRerank,
+        parent_ceiling: Authority::Governed,
+    }
+}
+
+/// A fully-formed, cryptographically-closed candidate that SHOULD pass.
+#[allow(clippy::type_complexity)]
+fn clean_case() -> (
+    Constitution,
+    Genome,
+    CandidateManifest,
+    Vec<EvaluationReceipt>,
+    PromotionEnvelope,
+    RolePins,
+    Vec<ProofArtifact>,
+) {
+    let c = constitution();
+    let p = parent(&c);
+    let candidate = Detector::Contains {
+        needle: "ignore previous instructions".into(),
+    };
+    let artifact = clean_artifact();
+    let manifest = CandidateManifest::from_parts(
+        mutation(&p.hash, Authority::AutoReversible, Some(p.hash.clone())),
+        &candidate,
+        vec![],
+        vec![],
+        vec![InvariantProof {
+            invariant: "tenant_isolation".into(),
+            kind: "capability_analysis".into(),
+            reference: artifact.reference(),
+        }],
+    );
+    let (receipts, envelope, pins) = sign_closure(&c, &p, &manifest, &candidate);
+    (c, p, manifest, receipts, envelope, pins, vec![artifact])
 }
 
 #[test]
 fn a_fully_closed_candidate_passes_with_zero_rejections() {
-    let (c, p, m, r, e, pins) = clean_case();
-    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, NOW);
+    let (c, p, m, r, e, pins, arts) = clean_case();
+    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, &arts, NOW);
     assert!(rejects.is_empty(), "clean candidate rejected: {rejects:?}");
 }
 
 #[test]
+fn a_proof_reference_that_resolves_to_nothing_is_rejected() {
+    // Finding #4: a reference alone is not enough — the referenced artifact must
+    // be resolvable. Drop the artifact and the otherwise-clean candidate fails.
+    let (c, p, m, r, e, pins, _arts) = clean_case();
+    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, &[], NOW);
+    assert!(
+        rejects.contains(&Reject::ProofUnresolved("tenant_isolation".into())),
+        "unresolvable proof must reject: {rejects:?}"
+    );
+}
+
+#[test]
+fn a_proof_artifact_that_does_not_establish_the_invariant_is_rejected() {
+    // Finding #4: the artifact resolves (its hash matches the manifest reference)
+    // but its INDEPENDENTLY re-derived facts examined a different authority than
+    // this candidate's mutation, so it does not establish preservation.
+    let c = constitution();
+    let p = parent(&c);
+    let candidate = Detector::Contains {
+        needle: "ignore previous instructions".into(),
+    };
+    let bad_artifact = ProofArtifact {
+        invariant: "tenant_isolation".into(),
+        kind: "capability_analysis".into(),
+        examined_authority: Authority::Governed, // the mutation is AutoReversible
+        examined_scope: MutationScope::RetrievalRerank,
+        parent_ceiling: Authority::Governed,
+    };
+    let manifest = CandidateManifest::from_parts(
+        mutation(&p.hash, Authority::AutoReversible, Some(p.hash.clone())),
+        &candidate,
+        vec![],
+        vec![],
+        vec![InvariantProof {
+            invariant: "tenant_isolation".into(),
+            kind: "capability_analysis".into(),
+            reference: bad_artifact.reference(), // resolves, but won't establish
+        }],
+    );
+    let (r, e, pins) = sign_closure(&c, &p, &manifest, &candidate);
+    let rejects = verify_promotion(&c, &p, &manifest, &r, &e, &pins, &[bad_artifact], NOW);
+    assert!(
+        rejects.contains(&Reject::ProofDoesNotEstablish("tenant_isolation".into())),
+        "an artifact examining a different mutation must not establish: {rejects:?}"
+    );
+}
+
+#[test]
 fn tampering_with_the_candidate_after_signing_is_caught() {
-    let (c, p, mut m, r, e, pins) = clean_case();
+    let (c, p, mut m, r, e, pins, arts) = clean_case();
     // swap the declared effects AFTER the receipts+envelope were signed
     m.declared_effects.push("pii_egress".into());
-    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, NOW);
+    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, &arts, NOW);
     // candidate hash now differs from what the receipts/envelope bound to
     assert!(rejects.contains(&Reject::CandidateHashMismatch));
     assert!(rejects
@@ -163,7 +225,7 @@ fn tampering_with_the_candidate_after_signing_is_caught() {
 
 #[test]
 fn removing_a_judge_drops_below_quorum() {
-    let (c, p, m, mut r, _e, pins) = clean_case();
+    let (c, p, m, mut r, _e, pins, arts) = clean_case();
     r.truncate(1); // one judge only
                    // re-sign the envelope over the reduced receipt set so hashes still match
     let controller = SigningAuthority::from_seed("controller", [3u8; 32]);
@@ -176,7 +238,7 @@ fn removing_a_judge_drops_below_quorum() {
         NOW,
         600,
     );
-    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, NOW);
+    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, &arts, NOW);
     assert!(rejects
         .iter()
         .any(|x| matches!(x, Reject::TooFewJudges { .. })));
@@ -256,12 +318,11 @@ fn the_review_acceptance_test_maximally_malicious_candidate() {
         controllers: vec![],
     };
 
-    let rejects = verify_promotion(&c, &p, &manifest, &receipts, &envelope, &pins, NOW);
+    // No proof artifacts supplied — matching the self-asserted, unproven invariants.
+    let rejects = verify_promotion(&c, &p, &manifest, &receipts, &envelope, &pins, &[], NOW);
 
     // Distinct reasons — the review requires at least 6.
     use std::mem::discriminant;
-    let mut kinds: Vec<_> = rejects.iter().map(discriminant).collect();
-    kinds.dedup_by(|a, b| a == b);
     let distinct = {
         let mut s = std::collections::HashSet::new();
         for r in &rejects {

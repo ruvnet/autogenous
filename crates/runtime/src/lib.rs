@@ -18,7 +18,7 @@ use deployment::verified_rollback;
 pub use deployment::{DeploymentAdapter, Health, InMemoryAdapter, RollbackReceipt};
 use envelope::{
     evaluate_and_sign, verify_promotion, CandidateManifest, EvaluationReceipt, InvariantProof,
-    PromotionEnvelope, RolePins,
+    PromotionEnvelope, ProofArtifact, RolePins,
 };
 use evaluator::Corpus;
 use generator::{propose, AttackEvidence, GeneratorConfig};
@@ -202,19 +202,33 @@ impl Runtime {
                 Some(m) => m.clone(),
                 None => continue,
             };
-            // Proof references for every parent invariant this retrieval-scope
-            // mutation preserves. (Independent RESOLUTION of the referenced proof
-            // artifact is the tracked next depth; a reference already replaces the
-            // review-flagged bare boolean.)
+            // A content-addressed capability-analysis proof ARTIFACT per preserved
+            // invariant, recording the exact facts the analysis examined (this
+            // mutation's authority + scope, the parent ceiling). The manifest
+            // proof references the artifact by content hash; `verify_promotion`
+            // resolves it and independently re-derives that it establishes the
+            // invariant (finding #4 — no bare reference, no self-assertion).
+            let mut proof_artifacts: Vec<ProofArtifact> = Vec::new();
             let proofs: Vec<InvariantProof> = self
                 .parent
                 .hard_invariants
                 .iter()
                 .filter(|i| i.holds)
-                .map(|i| InvariantProof {
-                    invariant: i.name.clone(),
-                    kind: "capability_analysis".into(),
-                    reference: content_hash(&("proof", &i.name, &cand.antibody.id)),
+                .map(|i| {
+                    let artifact = ProofArtifact {
+                        invariant: i.name.clone(),
+                        kind: "capability_analysis".into(),
+                        examined_authority: mutation.requested_authority,
+                        examined_scope: mutation.scope,
+                        parent_ceiling: self.parent.capability_ceiling,
+                    };
+                    let reference = artifact.reference();
+                    proof_artifacts.push(artifact);
+                    InvariantProof {
+                        invariant: i.name.clone(),
+                        kind: "capability_analysis".into(),
+                        reference,
+                    }
                 })
                 .collect();
 
@@ -271,6 +285,7 @@ impl Runtime {
                 &receipts,
                 &env,
                 &self.pins,
+                &proof_artifacts,
                 now,
             );
             if !rejects.is_empty() {

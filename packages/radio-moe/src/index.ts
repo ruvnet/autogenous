@@ -178,6 +178,21 @@ export {
   type OutcomeRejection,
 } from './outcome-verifier.js';
 
+// RuField typed observation contract + fail-closed admission (ADR-402): no
+// observation becomes evidence without source/location/confidence/privacy/
+// calibration/expiry — unknown stays unknown.
+export {
+  admitObservation,
+  confidenceTier,
+  type Observation,
+  type PrivacyClass,
+  type ObservationRejection,
+  type ObservationAdmission,
+  type ObservationPolicy,
+  type ActionTier,
+  type TierThresholds,
+} from './observation.js';
+
 // Direct signed TCP peer transport (ADR-395/396 reference adapter — integrity
 // only; production requires QUIC+mTLS or equivalent).
 export {

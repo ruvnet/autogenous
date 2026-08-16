@@ -164,14 +164,19 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
    target architecture; the mesh substrate (fusion, quorum, gate, failover,
    ledger) is the integration point, and RuView/RuField/Spaces are the
    perception/world-model layers that plug into it.
-2. **Structural uncertainty is non-negotiable at the seam** — the inbound
-   observation schema requires source identity, location, confidence, privacy
-   class, calibration version, and expiry; missing any → inadmissible as
-   evidence. High-confidence action requires independent corroboration.
-3. **This ADR ships no code this turn** — it is the specification. Concrete
-   loop items: the observation-frame schema (RuField), the fusion-vs-single-
-   sensor false-alert bench, the timed failover bench (shared), and the
-   sovereign-peer local-data boundary.
+2. **Structural uncertainty is non-negotiable at the seam** — **BUILT**
+   (`src/observation.ts`, `admitObservation`). The inbound observation schema
+   requires source identity, location, kind, confidence, privacy class,
+   calibration version, and a bounded/current expiry window; missing or malformed
+   any of these → **inadmissible** (fail-closed — unknown stays unknown), with a
+   per-field rejection reason. Optional sensor-health floor. `confidenceTier`
+   maps ADR-402 §5 (low → update-world-model, medium → request-more-sensing, high
+   → authorized-workflow), with the top tier documented as *eligibility only* —
+   an authorized action still requires independent corroboration at the
+   `ActionGate` (graded quorum). Proven by `test/observation.test.ts` (6 tests).
+3. **Remaining ADR-402 loop items** (this ADR is otherwise a specification): the
+   timed failover bench (**done**, shared with ADR-401), the fusion-vs-single-
+   sensor false-alert bench, and the sovereign-peer local-data boundary.
 
 ## Consequences
 

@@ -10,3 +10,4 @@ description = "Autogenous Antibody Package (AAP): signed, capability-constrained
 [dependencies]
 agl-types = { path = "../agl-types" }
 serde = { workspace = true }
+serde_json = { workspace = true }

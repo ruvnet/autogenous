@@ -8,6 +8,7 @@ members = [
   "crates/antibody",
   "crates/evaluator",
   "crates/promotion",
+  "crates/midstream-adapter",
 ]
 
 [workspace.package]

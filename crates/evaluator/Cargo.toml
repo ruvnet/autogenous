@@ -9,4 +9,5 @@ description = "Autogenous replay evaluator: runs a candidate detector over label
 
 [dependencies]
 agl-types = { path = "../agl-types" }
+antibody = { path = "../antibody" }
 serde = { workspace = true }

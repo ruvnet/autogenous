@@ -1,0 +1,18 @@
+[package]
+name = "midstream-adapter"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous stream-observation adapter: raw LLM/agent stream chunks + armed antibodies -> structured incidents with derived evidence (ADR-393 MVP component 2)."
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+antibody = { path = "../antibody" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+evaluator = { path = "../evaluator" }
+promotion = { path = "../promotion" }

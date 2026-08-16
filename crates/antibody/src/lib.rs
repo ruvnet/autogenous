@@ -11,6 +11,9 @@
 //!   request cancellation, reduce authority, or start governed evaluation.
 //! - **§8.4**: every antibody expires unless renewed by current evidence.
 
+pub mod detector;
+pub use detector::{Detector, DetectorError};
+
 use agl_types::{Applicability, Authority, Mutation};
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +24,7 @@ use serde::{Deserialize, Serialize};
 pub enum Trigger {
     ExactPattern { pattern: String },
     TemporalLogicViolation { formula: String },
-    DistributionShift { metric: String, threshold_sigma: f64_bits },
+    DistributionShift { metric: String, threshold_sigma: F64Bits },
     AttractorTransition { from: String, to: String },
     ResourceBudgetViolation { budget: String },
     CapabilityMisuse { capability: String },
@@ -31,13 +34,13 @@ pub enum Trigger {
 
 /// f64 wrapper with Eq via bit pattern (triggers must be hashable/comparable).
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct f64_bits(pub f64);
-impl PartialEq for f64_bits {
+pub struct F64Bits(pub f64);
+impl PartialEq for F64Bits {
     fn eq(&self, o: &Self) -> bool {
         self.0.to_bits() == o.0.to_bits()
     }
 }
-impl Eq for f64_bits {}
+impl Eq for F64Bits {}
 
 impl Trigger {
     /// Exact symbolic / logical triggers may authorize containment up to the
@@ -93,6 +96,8 @@ pub struct Antibody {
     pub issuer: String,
     pub parent_genome_hash: String,
     pub trigger: Trigger,
+    /// The serializable, sandbox-safe detector this antibody ships (§8.1.7).
+    pub detector: Detector,
     pub evidence: Vec<EvidenceReceipt>,
     pub containment: Containment,
     /// The typed genome mutation this antibody proposes (may be None for pure
@@ -123,6 +128,8 @@ pub enum AntibodyError {
     NoEvidence,
     NoRollback,
     Unsigned,
+    /// The shipped detector fails structural validation (resource bounds etc.).
+    InvalidDetector(DetectorError),
 }
 
 impl Antibody {
@@ -148,6 +155,7 @@ impl Antibody {
         if self.signature.is_none() {
             return Err(AntibodyError::Unsigned);
         }
+        self.detector.validate().map_err(AntibodyError::InvalidDetector)?;
         Ok(())
     }
 
@@ -176,6 +184,7 @@ mod tests {
             issuer: "deployment-a".into(),
             parent_genome_hash: "g0".into(),
             trigger: Trigger::ExactPattern { pattern: "ignore previous instructions".into() },
+            detector: Detector::Contains { needle: "ignore previous instructions".into() },
             evidence: vec![receipt()],
             containment: Containment::Quarantine,
             proposed_mutation: None,
@@ -199,7 +208,7 @@ mod tests {
     #[test]
     fn statistical_trigger_cannot_terminate() {
         let mut a = antibody();
-        a.trigger = Trigger::DistributionShift { metric: "entropy".into(), threshold_sigma: f64_bits(3.0) };
+        a.trigger = Trigger::DistributionShift { metric: "entropy".into(), threshold_sigma: F64Bits(3.0) };
         a.containment = Containment::Terminate;
         assert_eq!(a.validate(0), Err(AntibodyError::StatisticalTriggerIrreversible));
         // …but it may quarantine.

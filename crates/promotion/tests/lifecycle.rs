@@ -4,7 +4,7 @@
 //! an injected regression -> automatic rollback. No network, no keys.
 
 use agl_types::*;
-use antibody::{Antibody, Containment, EvidenceReceipt, Trigger};
+use antibody::{Antibody, Containment, Detector, EvidenceReceipt, Trigger};
 use constitution::Constitution;
 use evaluator::{replay, Corpus};
 use promotion::{CanaryController, CanaryState, Decision};
@@ -53,6 +53,7 @@ fn novel_attack_becomes_signed_deployed_defense() {
         issuer: "deployment-1".into(),
         parent_genome_hash: parent.hash.clone(),
         trigger: Trigger::ExactPattern { pattern: "ignore previous instructions".into() },
+        detector: Detector::Contains { needle: "ignore previous instructions".into() },
         evidence: vec![EvidenceReceipt { witness_ref: "w-100".into(), derived: true, data_policy_ref: None }],
         containment: Containment::Quarantine,
         proposed_mutation: Some(Mutation {
@@ -78,8 +79,10 @@ fn novel_attack_becomes_signed_deployed_defense() {
     };
     aap.validate(1_800_000_000).expect("antibody structurally valid");
 
-    // 2. Replay-evaluate the antibody's detector over labeled corpora.
-    let report = replay(|s| s.contains("ignore previous instructions"), &corpus());
+    // 2. Replay-evaluate the antibody's PACKAGED detector — the same serialized
+    //    artifact that ships in the AAP, not an ad-hoc closure.
+    let packaged: Detector = serde_json::from_str(&serde_json::to_string(&aap.detector).unwrap()).unwrap();
+    let report = evaluator::replay_packaged(&packaged, &corpus());
     assert!(report.recall >= 0.99, "recall {}", report.recall);
     assert!(report.fp_rate < 0.005, "fp {}", report.fp_rate);
     let fitness = report.to_fitness(1.5, true);

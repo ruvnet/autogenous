@@ -16,6 +16,7 @@ version = "0.1.0"
 dependencies = [
  "agl-types",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -77,6 +78,7 @@ name = "evaluator"
 version = "0.1.0"
 dependencies = [
  "agl-types",
+ "antibody",
  "serde",
 ]
 
@@ -109,6 +111,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "midstream-adapter"
+version = "0.1.0"
+dependencies = [
+ "agl-types",
+ "antibody",
+ "evaluator",
+ "promotion",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -126,6 +140,7 @@ dependencies = [
  "constitution",
  "evaluator",
  "serde",
+ "serde_json",
  "verifier",
 ]
 

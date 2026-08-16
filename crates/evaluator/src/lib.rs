@@ -50,6 +50,12 @@ pub fn wilson95(successes: usize, n: usize) -> (f64, f64) {
     ((center - half).max(0.0), (center + half).min(1.0))
 }
 
+/// Replay a serializable [`antibody::Detector`] over a corpus — the packaged
+/// artifact path (the closure form below remains for ad-hoc experiments).
+pub fn replay_packaged(detector: &antibody::Detector, corpus: &Corpus) -> ReplayReport {
+    replay(|s| detector.matches(s), corpus)
+}
+
 /// Replay a detector over a corpus.
 pub fn replay<F: Fn(&str) -> bool>(detector: F, corpus: &Corpus) -> ReplayReport {
     let malicious_detected = corpus.malicious.iter().filter(|s| detector(s)).count();

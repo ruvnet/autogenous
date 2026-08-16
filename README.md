@@ -54,8 +54,11 @@ The first executable profile is the **Autogenous Antibody Package (AAP)**: a sig
 P7 (invented representations / semantic airlock) is ongoing research by definition — it has a specified contract (ADR-392 §7), not fake results.
 
 ```bash
-cargo test   # 33 tests, including the end-to-end acceptance lifecycle
+cargo test   # 42 tests, including the end-to-end acceptance lifecycle
 ```
+
+**Measured** (release, Ryzen host, `cargo run --release -p midstream-adapter --example perf`):
+stream observation ≈ **0.9 µs/chunk** with 1 armed antibody (≈ 14 µs with 16) — ~350× inside the <5 ms p99 SLO; replay of **100,000 labeled streams in ~7 ms**; canary decision ≈ 2 ns. Detectors are **serializable artifacts** (a closed combinator algebra with enforced resource bounds — no closures, no regex engine), and the incident adapter catches **attacks split across chunk boundaries** via a rolling window.
 
 The lifecycle test proves the flow offline: a novel prompt attack becomes an antibody candidate → the verifier admits it → replay over 4,000 labeled streams measures recall ≥ 99% and FP < 0.5% → the canary walks 1→10→50→100% → **signed** promotion. A deliberately-inserted capability expansion is **rejected even with perfect fitness**, and an injected regression **rolls back automatically** mid-canary.
 

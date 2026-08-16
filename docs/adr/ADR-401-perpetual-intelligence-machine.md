@@ -83,12 +83,17 @@ Status legend: **Built** (in `packages/radio-moe/src`, tested) · **Partial**
      confirms it (partial: the flywheel gate is internal; the external-verifier
      seam is a loop item).
 
-3. **Converge the promotion invariant to one predicate.** ADR-400's gate is
-   Better∧Safe; Authorized and Reversible are enforced by adjacent systems
-   (flywheel anchor, RVM, ledger). The target is a single
-   `promoteAuthorized(candidate) = Better ∧ Safe ∧ Authorized ∧ Reversible`
-   checked in one place so no path can promote on three of four. **Loop item**,
-   not this turn.
+3. **Converge the promotion invariant to one predicate.** — **DONE.**
+   `mesh-evolve.ts` now exports `promoteAuthorized(candidate, champion, { authorized,
+   reversible }) → PromotionDecision`, the single gate
+   `Promote = Better ∧ Safe ∧ Authorized ∧ Reversible`, and `evolveMesh` routes
+   every promotion through it (authorized: governed loop within ceilings;
+   reversible: prior champion + signed ledger retained as the rollback target).
+   `promotable` remains exactly its Better∧Safe core. Each conjunct is
+   independently blocking and the returned verdict pinpoints which one blocked —
+   proven by `test/promote-authorized.test.ts` (all-four promotes; any three-of-
+   four does not). Behavior unchanged (the in-repo path passes authorized/
+   reversible = true), but no promotion path can now skip a conjunct.
 
 ## Acceptance test
 

@@ -134,10 +134,46 @@ export function mutate(parent: EvolvableParams, rnd: () => number): EvolvablePar
   return { weights: w, quorumThreshold };
 }
 
-/** Frozen conjunctive promotion gate: hard gates AND beats-champion by margin. */
+/** Frozen conjunctive promotion gate: hard gates AND beats-champion by margin.
+ *  This is the Better∧Safe core; the full governed invariant is `promoteAuthorized`. */
 export const PROMOTION_MARGIN = 0.02;
 export function promotable(candidate: Fitness, champion: Fitness): boolean {
   return candidate.hardGatesPass && candidate.separation >= champion.separation + PROMOTION_MARGIN;
+}
+
+/** The two non-fitness conjuncts a promotion needs, supplied by the caller.
+ *  `authorized`: this promotion is permitted by policy (in-repo flywheel: the
+ *  governed loop within constitutional ceilings; external: a valid human/anchor
+ *  authorization). `reversible`: a rollback target is retained so the promotion
+ *  can be undone (the signed champion history / ledger). */
+export interface PromotionContext {
+  authorized: boolean;
+  reversible: boolean;
+}
+
+/** Per-conjunct promotion verdict (auditable — shows exactly which gate blocked). */
+export interface PromotionDecision {
+  better: boolean;
+  safe: boolean;
+  authorized: boolean;
+  reversible: boolean;
+  promote: boolean;
+}
+
+/** ADR-401 Decision 3 — the ONE governed-self-improvement predicate:
+ *  `Promote = Better ∧ Safe ∧ Authorized ∧ Reversible`. Every promotion path
+ *  must clear all four; no path can promote on three of four. `promotable`
+ *  above is exactly its Better∧Safe core. */
+export function promoteAuthorized(
+  candidate: Fitness,
+  champion: Fitness,
+  ctx: PromotionContext,
+): PromotionDecision {
+  const safe = candidate.hardGatesPass === true;
+  const better = candidate.separation >= champion.separation + PROMOTION_MARGIN;
+  const authorized = ctx.authorized === true;
+  const reversible = ctx.reversible === true;
+  return { better, safe, authorized, reversible, promote: better && safe && authorized && reversible };
 }
 
 export interface GenerationRecord {
@@ -182,7 +218,15 @@ export function evolveMesh(
       const fit = evaluate(cand);
       if (!best || fit.separation > best.fit.separation) best = { params: cand, fit };
     }
-    const promoted = best !== null && promotable(best.fit, championFit);
+    // Governed promotion through the ONE four-conjunct predicate (ADR-401 Dec 3).
+    // authorized: the seeded loop stays within constitutional ceilings by
+    // construction (mutate() clamps). reversible: the prior champion is always
+    // retained (champion var + signed ledger) as the rollback target.
+    const decision =
+      best !== null
+        ? promoteAuthorized(best.fit, championFit, { authorized: true, reversible: true })
+        : null;
+    const promoted = decision?.promote === true;
     if (promoted && best) {
       champion = best.params;
       championFit = best.fit;

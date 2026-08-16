@@ -16,12 +16,13 @@
 //! RVF witness trajectory.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { PeerIdentity } from '../src/transport.js';
 import { TcpPeerNode, TcpConnection, sealEnvelope, sendEnvelope, type Envelope } from '../src/tcp-transport.js';
 import { BatchSigner, verifyBatch, type BatchSeal } from '../src/batch-signing.js';
-import { verifyFrame, type AgentFrame } from '../src/agent-frame.js';
+import { verifyFrame, StreamNonceGate, type AgentFrame } from '../src/agent-frame.js';
 import { CommandStreamingExpert, type EventParser } from '../src/streaming-experts.js';
 import { openRouterExpert } from '../src/http-experts.js';
 import { RelevanceScorer } from '../src/relevance.js';
@@ -94,15 +95,17 @@ async function runExpert(): Promise<void> {
 
   async function handleOpen(e: Envelope): Promise<void> {
     if (e.kind !== 'request.open') return;
-    const prompt = (e.payload as { prompt?: string }).prompt ?? '';
+    const { prompt = '', streamNonce } = e.payload as { prompt?: string; streamNonce?: string };
     console.log(`[${name}] request.open accepted from ${e.senderPeer}`);
     const live = Boolean(process.env.OPENROUTER_API_KEY);
+    // NOTE: the HTTP expert path does not yet thread streamNonce; the local
+    // (fake/live-CLI) path stamps it. Offline demo exercises the full gate.
     const expert = live
       ? openRouterExpert(name, identity, [1], { model: process.env.MESH_MODEL ?? 'openai/gpt-4o-mini' })
       : new CommandStreamingExpert(name, identity, [1], {
           command: process.execPath,
           args: ['-e', `for (const w of ${JSON.stringify([`${name}:`, ' separate', ' routing', ' from', ' authority.'])}) console.log(JSON.stringify({delta:w}));`],
-        }, fakeParser);
+        }, fakeParser, streamNonce !== undefined ? { streamNonce } : {});
 
     // Optimized path (ADR-399 Update 6): ONE persistent socket to the origin,
     // deltas sealed in bounded hash-chained batches (1 signature per batch).
@@ -158,7 +161,11 @@ async function runOrigin(): Promise<void> {
   const folded: AgentFrame[] = [];
   const done = new Set<string>();
   let badFrames = 0;
+  let nonceRejects = 0;
   const scorer = new RelevanceScorer(PROMPT);
+  // In-frame replay binding: receiver-issued per-stream nonce (mesh-designed).
+  const streamNonce = randomBytes(16).toString('hex');
+  const nonceGate = new StreamNonceGate(streamNonce);
 
   const node = new TcpPeerNode({
     identity,
@@ -185,6 +192,7 @@ async function runOrigin(): Promise<void> {
         }
         for (const frame of payload.frames) {
           if (frame.agentId !== expertName) { badFrames += 1; continue; }
+          if (!nonceGate.accept(frame)) { nonceRejects += 1; continue; }
           folded.push(frame);
         }
         return;
@@ -195,6 +203,7 @@ async function runOrigin(): Promise<void> {
         badFrames += 1;
         return;
       }
+      if (!nonceGate.accept(frame)) { nonceRejects += 1; return; }
       folded.push(frame);
     },
     onReject: (reason) => console.log(`[origin] rejected envelope: ${reason}`),
@@ -218,7 +227,7 @@ async function runOrigin(): Promise<void> {
       routeEpoch: 1,
       senderSequence: ++seq,
       kind: 'request.open',
-      payload: { prompt: PROMPT },
+      payload: { prompt: PROMPT, streamNonce },
     });
     for (let attempt = 0; ; attempt++) {
       try {
@@ -242,7 +251,7 @@ async function runOrigin(): Promise<void> {
     }
   }
 
-  console.log(`\n── ${folded.length} verified frames from ${done.size}/${fresh.length} peers in ${ms.toFixed(0)} ms (bad frames: ${badFrames}) ──`);
+  console.log(`\n── ${folded.length} verified frames from ${done.size}/${fresh.length} peers in ${ms.toFixed(0)} ms (bad: ${badFrames}, nonce-rejected: ${nonceRejects}) ──`);
   for (const [agent, text] of byAgent) console.log(`  ${agent.padEnd(10)} → ${text.trim().slice(0, 120)}`);
 
   const relevance = new Map([...byAgent.keys()].map((agent) => {

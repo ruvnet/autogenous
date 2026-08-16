@@ -40,6 +40,9 @@ export type SpawnSpec = { command: string; args: string[] } | ((prompt: string) 
 export interface StreamingExpertOptions {
   /** Default capability tag stamped on frames that don't set their own. */
   capabilityUsed?: string;
+  /** In-frame replay binding: the receiver-issued per-stream nonce to echo
+   *  inside every signed frame (mesh-designed, ADR-399/dogfood-1). */
+  streamNonce?: string;
   /** Extra environment for the child process. */
   env?: NodeJS.ProcessEnv;
   cwd?: string;
@@ -104,6 +107,7 @@ export class CommandStreamingExpert {
             capabilityUsed: p.capabilityUsed ?? this.opts.capabilityUsed ?? this.agentId,
             evidenceHashes: p.evidenceHashes ?? [],
             cost: p.cost ?? 0,
+            ...(this.opts.streamNonce !== undefined ? { streamNonce: this.opts.streamNonce } : {}),
           });
         }
       }

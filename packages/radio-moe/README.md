@@ -37,7 +37,7 @@ incompatible vocabularies, and the race result is literally typed
 
 ```bash
 npm install
-npm test              # 87 offline, deterministic tests
+npm test              # 116 offline, deterministic tests
 npm run demo          # a 3-peer local mesh — both regimes
 npm run bench:fusion  # does the fused mixture beat the strongest single expert?
 ```
@@ -68,9 +68,10 @@ and the **[API / SDK Reference](docs/API.md)** (every public export, grouped by 
 | **Signed transport** | `PeerIdentity`, `InMemorySignedTransport`, `TcpPeerNode`, `sealBatch`/`BatchSigner` | ed25519-signed frames; a reference TCP peer; hash-chained batch signing (1 sig / ≤64 frames). |
 | **Streaming mixture (ADR-397)** | `AgentFrame`, `signFrame`/`verifyFrame`, `MixtureState`, `RelevanceScorer` | Typed signed claim/evidence frames folded continuously with q/r/e/c/l/u weighting, provenance, contradiction tracking, replica-stable state hashes. |
 | **Governed release** | `ActionGate`, `independentSupportSet`, `DeterministicShadow`, `createTakeoverGrant` | Actions release only from signed, admitted, independently-sourced support under a frozen policy; signed output ordering; fenced shadow takeover. |
-| **Independence / false-consensus** | `effectiveSupport`, `lineageWeightedWinner`, `buildCert`/`verifyCert`, `partitionEvidence` | Lineage-graded independence (provider/arch/size), lineage-weighted fusion decision, k-of-n counter-signing quorum, decorrelated evidence feeds. |
+| **Independence / false-consensus** | `effectiveSupport`, `lineageWeightedWinner`, `admitDurableWrite`, `buildCert`/`verifyCert`, `partitionEvidence` | Lineage-graded independence (provider/arch/size), lineage-weighted fusion decision, external+adversarial outcome verification before durable writes, k-of-n counter-signing quorum, decorrelated evidence feeds. |
+| **Spatial & cross-org (ADR-402 / cap 6)** | `admitObservation`/`confidenceTier`, `discloseFinding`/`verifyDisclosure` | Fail-closed RuField observation admission (no fact without calibration/expiry); sovereign-peer signed disclosure carrying only permitted evidence refs, never raw data. |
 | **Real backends** | `openRouterExpert`, `geminiExpert`, `CommandStreamingExpert` (`claude`/`codex`), `harnessPodExperts` | Run the mesh against OpenRouter / Gemini / local `claude -p` / `codex exec` / create-agent-harness pods. |
-| **Governed evolution (ADR-400)** | `evolveMesh`, `promotable`, `verifyLedger`, `CEILINGS` | Flywheel over the *evolvable* params only, inside frozen constitutional ceilings, ed25519-signed hash-chained receipts. |
+| **Governed evolution (ADR-400/401)** | `evolveMesh`, `promotable`, `promoteAuthorized`, `verifyLedger`, `CEILINGS` | Flywheel over the *evolvable* params only, inside frozen ceilings, ed25519-signed receipts; promotion gated by the one predicate `Better ∧ Safe ∧ Authorized ∧ Reversible`. |
 
 ## Architecture
 
@@ -110,12 +111,14 @@ See [ADR-401](../../docs/adr/ADR-401-perpetual-intelligence-machine.md).
 
 | Script | What it runs |
 |---|---|
-| `npm test` | 87 offline deterministic tests |
+| `npm test` | 116 offline deterministic tests |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run demo` | 3-peer local mesh, both regimes (`examples/local-mesh.ts`) |
 | `npm run mesh` | request→stream→fold end to end (`examples/mesh-run.ts`) |
 | `npm run bench` | hot-path throughput: signing/verify/TCP (`examples/bench.ts`) |
 | `npm run bench:fusion` | fusion vs best-single (`examples/bench-fusion.ts`) |
+| `npm run bench:failover` | 30%-peer-loss recovery time vs the 5 s target (`examples/bench-failover.ts`) |
+| `npm run bench:false-alert` | sensor false-alert reduction via corroboration fusion (`examples/bench-false-alert.ts`) |
 | `npm run evolve` | one governed flywheel turn (`examples/evolve-run.ts`) |
 | `npm run example:custom` | define & run your own pod (`examples/custom-harness.ts`) |
 
@@ -125,7 +128,7 @@ Reference implementation. Routing, logit mixing / text racing, signed streaming
 frames (in-memory + reference TCP), deterministic claim/evidence state,
 independence-aware action gating, signed output ordering, replay checkpoints,
 fenced shadow takeover, governed flywheel evolution, and the fusion-vs-best-single
-benchmark are covered by **87 passing offline tests**. Not yet demonstrated:
+benchmark are covered by **116 passing offline tests**. Not yet demonstrated:
 production QUIC/mTLS transport, hostile-network deployment, production witness
 persistence, cross-machine multi-peer runs at scale, and ADR-397's end-to-end
 quality/latency SLOs. This is **not** a claim of full production readiness or full

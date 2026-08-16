@@ -120,8 +120,10 @@ import { effectiveSupport, lineageWeightedWinner, lineageRegistry, buildCert, ve
 | `buildCert`, `counterSign`, `verifyCert`, `CompletionCert`, `CertPolicy` | fn/type | k-of-n counter-signing completion quorum; signers themselves must meet a minimum pairwise independence (clique-resistant). |
 | `jaccard` | fn | Set overlap over sourceIds. |
 | `partitionEvidence(pool, expertIds, k)`, `EvidenceRef`, `Feed`, `FeedMode` | fn/type | Decorrelated per-expert evidence feeds (never identical context to all experts). |
+| `lineageWeightedWinner(snapshot, lineageOf, w?)`, `lineageRegistry`, `LineageDecision`, `LineageResolver` | fn/type | Re-resolve a mixture snapshot's winner by lineage `effectiveSupport` (fail-closed on unknown lineage). |
+| `admitDurableWrite(hash, verdicts, policy)`, `signOutcomeVerdict`, `outcomeHash`, `OutcomeVerdict`, `OutcomeGatePolicy`, `OutcomeGateDecision`, `VerdictStance` | fn/type | **External outcome verification before a durable write** (ADR-401 Dec 2): admits only on external (non-contributor) + independent affirmation that survives adversarial `refute`; fail-closed. |
 
-Design: [ADR-401](../../../docs/adr/ADR-401-perpetual-intelligence-machine.md) (capability 3 / false-consensus invariant).
+Design: [ADR-401](../../../docs/adr/ADR-401-perpetual-intelligence-machine.md) (capability 3 / false-consensus invariant / Dec 2).
 
 ---
 
@@ -173,7 +175,8 @@ import { evolveMesh, promotable, verifyLedger, CEILINGS, PROMOTION_MARGIN } from
 |---|---|---|
 | `evolveMesh(identity, seed, generations, population?, start?)` | fn | Run the flywheel; returns `EvolutionResult` (champion, fitness, history, signed ledger). |
 | `evaluateMeshParams` / `mutateMeshParams` | fn | Deterministic fitness on the frozen bench / bounded seeded mutation (clamped to ceilings). |
-| `promotable(candidate, champion)` | fn | Frozen conjunctive gate: all hard gates **AND** beats champion by `≥ PROMOTION_MARGIN`. |
+| `promotable(candidate, champion)` | fn | The **Better∧Safe** core: all hard gates **AND** beats champion by `≥ PROMOTION_MARGIN`. |
+| `promoteAuthorized(candidate, champion, {authorized, reversible})`, `PromotionContext`, `PromotionDecision` | fn/type | The ONE governed predicate (ADR-401 Dec 3): `Promote = Better ∧ Safe ∧ Authorized ∧ Reversible`; each conjunct independently blocking; verdict shows which blocked. |
 | `verifyLedger(result, publicKeyDerHex)` | fn | Re-derive the hash chain + every receipt signature. |
 | `lcg(seed)` | fn | Deterministic PRNG (no `Math.random`) — replayable evolution. |
 | `CEILINGS`, `PROMOTION_MARGIN` | const | Constitutional bounds; evolution cannot exceed them. |
@@ -192,6 +195,24 @@ import { RadioBus, Watcher } from 'radio-moe';   // from @metaharness/radio
 
 `RadioBus`, `Watcher`, `RadioMessage`, `FoldedMention` — the in-process AgentRadio
 awareness bus (metadata-only; never crosses the network).
+
+---
+
+## 9. Spatial & cross-org boundaries (ADR-402 / cap 6)
+
+```ts
+import { admitObservation, confidenceTier, discloseFinding, verifyDisclosure } from 'radio-moe';
+```
+
+| Export | Kind | Summary |
+|---|---|---|
+| `admitObservation(obs, now, policy?)`, `Observation`, `ObservationRejection`, `ObservationAdmission`, `ObservationPolicy` | fn/type | **RuField** fail-closed admission: an observation missing source/location/kind/confidence/privacy-class/calibration/expiry (or expired / unhealthy sensor) is inadmissible — unknown stays unknown (ADR-402). |
+| `confidenceTier(obs, thresholds?)`, `ActionTier`, `TierThresholds` | fn/type | ADR-402 §5 tier: `update-world-model` / `request-more-sensing` / `authorized-workflow` (top tier is eligibility-only — still needs corroboration at the `ActionGate`). |
+| `PrivacyClass` | type | `'public' \| 'internal' \| 'restricted' \| 'sensitive'`. |
+| `discloseFinding(identity, finding, policy, now)`, `verifyDisclosure`, `assertWithinCeiling`, `evidenceDigest` | fn | **Sovereign-peer disclosure** (cap 6): a signed disclosure carrying only claim + confidence + evidence digests ≤ the privacy ceiling; raw payloads never cross. |
+| `InternalFinding`, `EvidenceItem`, `DisclosurePolicy`, `Disclosure`, `UnsignedDisclosure`, `DisclosedEvidenceRef` | type | Disclosure shapes. `InternalFinding.raw`/`EvidenceItem.payload` stay local by construction. |
+
+Design: [ADR-402](../../../docs/adr/ADR-402-ruview-cognitum-spaces-spatial-intelligence.md), [ADR-401 cap 6](../../../docs/adr/ADR-401-perpetual-intelligence-machine.md).
 
 ---
 

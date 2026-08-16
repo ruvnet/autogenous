@@ -251,6 +251,25 @@ export {
 // PKI (key/cert/ca, mutual auth) is the deployer's, supplied via tls options.
 export { TlsPeerNode, tlsSendEnvelope, TlsConnection } from './tls-transport.js';
 
+// Cognitum Spaces adapter (ADR-402): connect the mesh to the DEPLOYED Cognitum
+// Spaces service (cog_-key/Bearer authed); map a Spaces Envelope → an Observation
+// so real spatial state flows through admitObservation.
+export {
+  CognitumSpacesClient,
+  spacesEnvelopeToObservation,
+  privacyOf,
+  apiKeyAuth,
+  bearerAuth,
+  envApiKeyAuth,
+  type CognitumAuth,
+  type CognitumSpacesConfig,
+  type CognitumSpaceTwin,
+  type CognitumSpacesEnvelope,
+  type SpacesBoundary,
+  type SpacesListResult,
+  type FetchLike as CognitumFetchLike,
+} from './cognitum-spaces.js';
+
 // ADR-396 production profile: hash-chained batch signing (1 signature per batch).
 export { sealBatch, verifyBatch, BatchSigner, MAX_BATCH, type BatchSeal } from './batch-signing.js';
 

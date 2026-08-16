@@ -25,6 +25,20 @@ failover (`failover.ts`), the witnessed trajectory ledger (`rvf-trajectory.ts`),
 and the midstream observation adapter (`midstream-adapter`). This ADR defines
 the contract so the perception layers drop in without redesign.
 
+**Update (2026-08-16) — Cognitum Spaces is DEPLOYED and now has a live adapter.**
+Cognitum Spaces runs on GCP (`spacesapi` Cloud Run, `GET /v1/spaces`, `cog_`-key /
+Bearer authed). `packages/radio-moe/src/cognitum-spaces.ts` (`CognitumSpacesClient`)
+connects the mesh to it and maps a Cognitum Spaces **Envelope** →
+a radio-moe `Observation` (`spacesEnvelopeToObservation`) so real spatial state
+flows through the ADR-402 `admitObservation` fail-closed admission. Auth is the
+caller's `cog_` key or a Bearer token from the Cognitum `identity` service
+(obtaining the key is the user's sign-in — an out-of-band step, never minted here).
+**Verified live** (`test/cognitum-spaces.test.ts` LIVE case, gated on
+`COGNITUM_API_KEY`): `GET /v1/spaces` → 200, and the service reports a `boundary`
+that **excludes `raw_csi`, `recordings`, `pose_frames`, `vital_waveforms`,
+`identity_observations` from the cloud** — the "raw sensing stays local" rule,
+enforced at the edge and confirmed against the running service.
+
 ## Functional architecture
 
 ### 1. RuView observes
@@ -155,7 +169,7 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
 | ≥95% calibrated presence accuracy | RuView calibration + RuField typed obs | **External (RuView) — bench gap** |
 | Peer-failure detection <5s | `bench-failover.ts` (shared with ADR-401) | Protocol recovery **measured** (p50 0.34 ms at 30% loss, ≈8000× under budget); sensor/network detection latency is the external part |
 | 50% false-alert reduction via fusion | `bench-false-alert.ts` + `test/false-alert.test.ts` (corroboration fusion vs no-fusion any-sensor baseline) | **Built & measured** — 58.3% reduction (60%→25%), detection retained 100% |
-| Raw sensing data stays local | sovereign-peer boundary (ADR-401 cap 6) | **Gap (design-only)** |
+| Raw sensing data stays local | Cognitum Spaces `boundary` (live) + sovereign-peer boundary (ADR-401 cap 6) | **Verified on the deployed service** — `/v1/spaces` boundary excludes raw_csi/recordings/pose_frames/vital_waveforms/identity_observations from the cloud |
 | Complete receipt per external action | `action-gate.ts` + `rvf-trajectory.ts` | Built (action side); wire perception provenance in |
 
 ## Decision

@@ -209,6 +209,24 @@ export {
   type Disclosure,
 } from './disclosure.js';
 
+// Signed reputation ledger (ADR-401 cap 9): peers advertise capabilities and earn
+// reputation ONLY from externally-verified contribution (tied to admitDurableWrite).
+// The w=q·t·r/(c·l) selection weight is an UNVALIDATED hypothesis (labeled).
+export {
+  signCapabilityClaim,
+  verifyCapabilityClaim,
+  mintPerformanceRecord,
+  verifyPerformanceRecord,
+  reputation,
+  selectionWeight,
+  type CapabilityClaim,
+  type UnsignedCapabilityClaim,
+  type PerformanceRecord,
+  type UnsignedPerformanceRecord,
+  type Reputation,
+  type SelectionInputs,
+} from './reputation.js';
+
 // Direct signed TCP peer transport (ADR-395/396 reference adapter — integrity
 // only; production requires QUIC+mTLS or equivalent).
 export {

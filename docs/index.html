@@ -31,6 +31,15 @@
   .pill{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:rgba(23,20,7,.8);border:1px solid var(--rule);border-radius:999px;padding:6px 14px}
   .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
   .hero{min-height:100svh;display:grid;place-items:center;text-align:center;padding:110px 0 60px;position:relative;z-index:2}
+  .heroviz{width:min(340px,72vw);margin:2rem auto 0;display:block}
+  .heroviz text{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;fill:var(--muted);text-transform:uppercase}
+  .heroviz .gate-label{fill:var(--amber)}
+  .plain{display:grid;grid-template-columns:1fr;gap:10px;max-width:640px;margin:2.2rem auto 0;text-align:left}
+  @media(min-width:640px){.plain{grid-template-columns:repeat(3,1fr)}}
+  .plain .p{background:rgba(23,20,7,.65);border:1px solid var(--rule);border-radius:12px;padding:12px 14px}
+  .plain .p b{display:block;font-family:var(--grot);color:var(--fg);margin-bottom:3px;font-size:.92rem}
+  .plain .p span{color:var(--muted);font-size:.84rem;line-height:1.5;display:block}
+  @media (prefers-reduced-motion: reduce){.heroviz .mover{display:none}}
   h1{font-family:var(--grot);font-weight:700;font-size:clamp(2.4rem,8vw,4.6rem);line-height:1.02;letter-spacing:-.03em;margin:1.4rem 0 0;background:linear-gradient(180deg,var(--fg),#e6b45a);-webkit-background-clip:text;background-clip:text;color:transparent}
   .sub{font-family:var(--grot);font-weight:600;font-size:clamp(1.02rem,3vw,1.3rem);margin:1.4rem auto .6rem;max-width:36ch}
   .lede{color:var(--muted);max-width:52ch;margin:.4rem auto 0}
@@ -93,10 +102,53 @@
 
 <section class="hero"><div class="wrap">
   <span class="pill"><span class="dot"></span> Governed Evolutionary Software · research prototype</span>
-  <h1>Software that evolves.<br>Under a constitution.</h1>
-  <p class="sub">Autogenous turns runtime failures into verified, portable, reversible software adaptations.</p>
-  <p class="lede">Not artificial life. Not a self-rewriting repository. An <b>evolutionary control plane</b>: observe production, propose a fix, prove it beats the parent, canary it, and roll it back the instant it misbehaves.</p>
+  <h1>Software that fixes itself.<br>Without trusting itself.</h1>
+  <p class="sub">When production breaks, Autogenous writes the fix, proves it beats what came before, ships it carefully — and can undo it in seconds.</p>
+  <p class="lede">Think immune system, not self-rewriting AI: every fix is tested against evidence, cryptographically signed, reversible by construction, and expires unless it keeps earning its place. The system is allowed to get <b>smarter</b> — it is never allowed to give itself more <b>power</b>.</p>
+
+  <svg class="heroviz" viewBox="0 0 340 300" role="img" aria-label="The Autogenous loop: a fix travels observe, propose, prove, ship — one candidate fails the proof gate and is rolled back">
+    <defs>
+      <path id="ring" d="M170,40 a110,110 0 1,1 -0.01,0" fill="none"/>
+    </defs>
+    <circle cx="170" cy="150" r="110" fill="none" stroke="rgba(162,154,131,.25)" stroke-width="1.5"/>
+    <!-- station nodes -->
+    <g>
+      <circle cx="170" cy="40"  r="5" fill="#0b0a06" stroke="#a9812f" stroke-width="1.5"/>
+      <circle cx="280" cy="150" r="5" fill="#0b0a06" stroke="#a9812f" stroke-width="1.5"/>
+      <circle cx="170" cy="260" r="7" fill="#171407" stroke="#e6b45a" stroke-width="2">
+        <animate attributeName="stroke-width" values="2;3.5;2" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="60"  cy="150" r="5" fill="#0b0a06" stroke="#a9812f" stroke-width="1.5"/>
+    </g>
+    <text x="170" y="24" text-anchor="middle">observe</text>
+    <text x="292" y="154" text-anchor="start">propose</text>
+    <text x="170" y="284" text-anchor="middle" class="gate-label">⛨ prove it</text>
+    <text x="48" y="154" text-anchor="end">ship</text>
+    <!-- a good fix: completes the loop -->
+    <circle class="mover" r="4.5" fill="#e6b45a">
+      <animateMotion dur="6s" repeatCount="indefinite"><mpath href="#ring"/></animateMotion>
+      <animate attributeName="opacity" values="1;1;.85;1" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <circle class="mover" r="7" fill="none" stroke="#7fd67f" stroke-width="1.4" opacity="0">
+      <animateMotion dur="6s" repeatCount="indefinite" keyPoints="0.5;0.5" keyTimes="0;1"><mpath href="#ring"/></animateMotion>
+      <animate attributeName="opacity" values="0;0;.9;0;0" keyTimes="0;.46;.52;.6;1" dur="6s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="6;6;13;6;6" keyTimes="0;.46;.56;.6;1" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <!-- a bad candidate: reaches the gate, gets rolled back -->
+    <circle class="mover" r="4" fill="#f0796e">
+      <animateMotion dur="9s" repeatCount="indefinite" keyPoints="0.14;0.46;0.46;0.17" keyTimes="0;0.45;0.62;1" calcMode="linear"><mpath href="#ring"/></animateMotion>
+      <animate attributeName="opacity" values="0;.95;.95;.95;0" keyTimes="0;.1;.45;.9;1" dur="9s" repeatCount="indefinite"/>
+    </circle>
+  </svg>
+
   <div><a class="cta" href="https://github.com/ruvnet/autogenous">View the code →</a><a class="cta ghost" href="#loop">How it works</a></div>
+
+  <div class="plain">
+    <div class="p"><b>It fixes itself</b><span>Watches its own traffic, spots what's failing, and drafts typed, testable candidate fixes — like antibodies, not patches.</span></div>
+    <div class="p"><b>It proves it first</b><span>A fix ships only after independent, signed evaluations show it beats the current version — one failed gate and it's refused.</span></div>
+    <div class="p"><b>It can always undo</b><span>No rollback plan, no admission. Bad fixes are reversed automatically, and every step leaves a tamper-evident receipt.</span></div>
+  </div>
+
   <div class="proof">
     <span><b>71 + 81 tests</b> · Rust plane + live mesh</span>
     <span><b>9/9</b> security-review findings closed</span>

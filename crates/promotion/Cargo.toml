@@ -1,0 +1,18 @@
+[package]
+name = "promotion"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous promotion controller: staged canary (1-10-50-100%), signed promotion, automatic rollback on gate violation (ADR-392 Phase 6)."
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+serde = { workspace = true }
+
+[dev-dependencies]
+constitution = { path = "../constitution" }
+verifier = { path = "../verifier" }
+antibody = { path = "../antibody" }
+evaluator = { path = "../evaluator" }

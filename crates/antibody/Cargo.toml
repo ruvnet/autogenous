@@ -1,0 +1,12 @@
+[package]
+name = "antibody"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous Antibody Package (AAP): signed, capability-constrained, expiring adaptations with triggers, containment, evidence, and rollback (ADR-392 §8, Phase 4)."
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+serde = { workspace = true }

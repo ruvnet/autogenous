@@ -1,0 +1,12 @@
+[package]
+name = "evaluator"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous replay evaluator: runs a candidate detector over labeled malicious/benign corpora, producing a fitness vector with Wilson-interval uncertainty (ADR-392 Phase 5)."
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+serde = { workspace = true }

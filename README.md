@@ -1,0 +1,89 @@
+<div align="center">
+
+# 🧬 Autogenous
+
+### Governed Evolutionary Software
+
+**Autogenous turns runtime failures into verified, portable, reversible software adaptations.**
+
+[![CI](https://img.shields.io/github/actions/workflow/status/ruvnet/autogenous/ci.yml?branch=main&label=CI)](./.github/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
+[![rust](https://img.shields.io/badge/rust-1.74%2B-orange)](#workspace)
+[![status](https://img.shields.io/badge/status-research%20prototype-e6b45a)](#honest-status)
+
+**[▶ The story](https://ruvnet.github.io/autogenous/)** · **[ADRs](./docs/adr)** · **Formal system:** Autogenous Runtime · **Protocol:** AGL · **Adaptation:** AAP
+
+</div>
+
+---
+
+> A governed operating system for software that can **learn from production, redesign parts of itself, prove the redesign is better, deploy it safely, and reverse it when wrong.** Not artificial life. Not a magical self-rewriting repository. Not another agent framework — an **evolutionary control plane**.
+
+## The loop
+
+```
+observe production → explain failures → generate adaptations → test against parent
+      ▲                                                              │
+      └── promote-or-rollback ← canary 1→10→50→100% ← proof gates ◄──┘
+```
+
+Every change is a **typed mutation** (the Autogenous Genome Language, **AGL**) that must declare: what it changes · why it should work · where it is valid · what authority it requires · which invariants it preserves · how it was tested · when it expires · how to reverse it. Unstructured source patches can't say any of that.
+
+The first executable profile is the **Autogenous Antibody Package (AAP)**: a signed, capability-constrained, *expiring* adaptation — trigger, evidence, detector, containment, regression corpus, fitness envelope, lineage, rollback.
+
+## Structural guarantees (in the types, not in policy docs)
+
+- **Authority never silently expands** — a mutation may request *less* authority than its parent's ceiling, never more (`agl-types`, enforced in `Mutation::admissible`).
+- **The constitution is outside the loop** — hash-pinned, externally governed; `MutationScope::Constitutional` is *never* auto-promotable (`constitution`).
+- **Promotion is a hard AND-gate over a fitness vector** — `min`-semantics; exceptional quality can never compensate for a safety or governance miss (`FitnessVector::passes_hard_gates`).
+- **Irreversible mutations are inadmissible** — no rollback target, no admission.
+- **Statistical triggers can't authorize irreversible actions** — a learned detector may quarantine or buffer, never terminate (`antibody`).
+- **Zero unsigned promotions** — the canary controller cannot reach `Promoted` without a signature (`promotion`).
+
+## Workspace
+
+| Crate | ADR-392 phase | What it does |
+|---|---|---|
+| [`constitution`](./crates/constitution) | P1 | Immutable, hash-pinned, externally-governed authority document; change-checking (≥2 signers + migration path) without change-applying |
+| [`agl-types`](./crates/agl-types) | P2 | Genomes, typed mutations, authority classes, mutation scopes, hard invariants, vector fitness + hard gates |
+| [`verifier`](./crates/verifier) | P3 | Deterministic admission verdicts with full failure explanations — independently re-runnable |
+| [`antibody`](./crates/antibody) | P4 | AAP: triggers (symbolic vs statistical), containment, privacy-ruled evidence, expiration/renewal |
+| [`evaluator`](./crates/evaluator) | P5 | Replay a detector over labeled corpora → recall/FP with Wilson-interval uncertainty → fitness vector |
+| [`promotion`](./crates/promotion) | P6 | Staged canary (1→10→50→100%), signed promotion, automatic rollback on the first gate violation |
+
+P7 (invented representations / semantic airlock) is ongoing research by definition — it has a specified contract (ADR-392 §7), not fake results.
+
+```bash
+cargo test   # 33 tests, including the end-to-end acceptance lifecycle
+```
+
+The lifecycle test proves the flow offline: a novel prompt attack becomes an antibody candidate → the verifier admits it → replay over 4,000 labeled streams measures recall ≥ 99% and FP < 0.5% → the canary walks 1→10→50→100% → **signed** promotion. A deliberately-inserted capability expansion is **rejected even with perfect fitness**, and an injected regression **rolls back automatically** mid-canary.
+
+## First product wedge
+
+The **adaptive agent firewall** (ADR-393): MidStream observes agent traffic → a novel attack becomes signed evidence → MetaHarness generates candidate defenses → Darwin tests them against malicious *and* benign traffic → the verifier rejects capability expansion → RVF packages the winner with tests/provenance/expiration/rollback → RVM runs it with constrained authority → validated defenses transfer across deployments **without transferring private traffic**.
+
+## Honest status
+
+This is a **research prototype** of the control-plane contract — typed, tested, deterministic, and offline. It is *not* wired to live MidStream/MetaHarness/RVF/RVM yet; those adapters are the next phase, and the components themselves are alpha. Performance and economics claims in the ADRs are hypotheses until benchmarked. See [ADR-391](./docs/adr/ADR-391-autogenous-governed-self-evolving-architecture.md) §"honest feasibility".
+
+## Design records
+
+- [ADR-390 — Inflight LLM-stream reformatting via midstream](./docs/adr/ADR-390-inflight-stream-reformatting-midstream.md) *(the shipped observation-layer brick — [ruvnet/llm-stream-reformat](https://github.com/ruvnet/llm-stream-reformat))*
+- [ADR-391 — Autogenous: governed self-evolving architecture](./docs/adr/ADR-391-autogenous-governed-self-evolving-architecture.md)
+- [ADR-392 — Autogenous Genome Language (AGL) and Antibody Protocol (AAP)](./docs/adr/ADR-392-autogenous-genome-language-antibody-protocol.md)
+- [ADR-393 — Product thesis: the evolutionary control plane + adaptive agent firewall](./docs/adr/ADR-393-autogenous-product-thesis-adaptive-agent-firewall.md)
+
+## Related
+
+[`ruvnet/midstream`](https://github.com/ruvnet/midstream) · [`ruvnet/metaharness`](https://github.com/ruvnet/metaharness) · [`ruvnet/llm-stream-reformat`](https://github.com/ruvnet/llm-stream-reformat) · [`ruvnet/ai-text-watermark`](https://github.com/ruvnet/ai-text-watermark)
+
+## License
+
+MIT © [rUv](https://github.com/ruvnet)
+
+---
+
+<div align="center">
+<sub><b>Keywords:</b> governed evolution · evolutionary control plane · self-improving software · agent firewall · typed mutations · AGL · antibody package · canary rollback · Rust</sub>
+</div>

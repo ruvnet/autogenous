@@ -1,0 +1,14 @@
+[package]
+name = "constitution"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous constitutional plane: immutable, hash-pinned, externally-governed authority document (ADR-392 §4.1)."
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }

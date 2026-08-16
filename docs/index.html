@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Autogenous — governed evolutionary software</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Autogenous turns runtime failures into verified, portable, reversible software adaptations. A governed evolutionary control plane: observe, explain, mutate, prove, canary, promote or roll back.">
+<meta property="og:title" content="Autogenous — governed evolutionary software">
+<meta property="og:description" content="Turning runtime failures into verified, portable, reversible software adaptations.">
+<meta name="theme-color" content="#0b0a06">
+<style>
+  :root{
+    --bg:#0b0a06; --card:#171407; --sunken:#0f0d05;
+    --amber:#e6b45a; --amber-dim:#a9812f; --green:#7fd67f; --danger:#f0796e;
+    --fg:#f0ead8; --muted:#a29a83; --rule:rgba(162,154,131,.18);
+    --grot:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --mono:ui-monospace,'SF Mono','JetBrains Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box} html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.65;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  ::selection{background:rgba(230,180,90,.3)}
+  #stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+  #rail{position:fixed;top:0;left:0;height:2px;width:0%;background:linear-gradient(90deg,var(--amber-dim),var(--amber));z-index:81;box-shadow:0 0 12px var(--amber)}
+  nav{position:fixed;inset:0 0 auto 0;z-index:80;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(10px + env(safe-area-inset-top)) clamp(14px,3.5vw,32px) 10px;backdrop-filter:blur(14px);background:rgba(11,10,6,.72);border-bottom:1px solid var(--rule)}
+  nav .brand{font-family:var(--grot);font-weight:700;letter-spacing:.02em}
+  nav .brand b{color:var(--amber)}
+  nav .links a{color:var(--muted);text-decoration:none;font-family:var(--mono);font-size:.74rem;margin-left:14px}
+  nav .links a:hover{color:var(--amber)}
+  .wrap{max-width:760px;margin:0 auto;padding:0 clamp(18px,5vw,24px);position:relative;z-index:2}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:rgba(23,20,7,.8);border:1px solid var(--rule);border-radius:999px;padding:6px 14px}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
+  .hero{min-height:100svh;display:grid;place-items:center;text-align:center;padding:110px 0 60px;position:relative;z-index:2}
+  h1{font-family:var(--grot);font-weight:700;font-size:clamp(2.4rem,8vw,4.6rem);line-height:1.02;letter-spacing:-.03em;margin:1.4rem 0 0;background:linear-gradient(180deg,var(--fg),#e6b45a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{font-family:var(--grot);font-weight:600;font-size:clamp(1.02rem,3vw,1.3rem);margin:1.4rem auto .6rem;max-width:36ch}
+  .lede{color:var(--muted);max-width:52ch;margin:.4rem auto 0}
+  .cta{display:inline-flex;gap:9px;align-items:center;font-family:var(--grot);font-weight:700;background:var(--amber);color:#241a05;border-radius:12px;padding:13px 24px;text-decoration:none;margin-top:2rem;box-shadow:0 8px 30px -8px rgba(230,180,90,.55)}
+  .cta.ghost{background:transparent;color:var(--fg);border:1px solid var(--rule);box-shadow:none;margin-left:10px}
+  .proof{display:flex;gap:16px 26px;justify-content:center;flex-wrap:wrap;margin-top:2.3rem;font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+  .proof b{color:var(--fg)}
+  section.blk{padding:10vh 0;position:relative;z-index:2}
+  .card{background:var(--card);border:1px solid var(--rule);border-radius:18px;padding:clamp(1.4rem,4vw,2.4rem)}
+  h2{font-family:var(--grot);font-weight:700;font-size:clamp(1.5rem,4.4vw,2.3rem);line-height:1.12;letter-spacing:-.02em;margin:0 0 1rem}
+  .num{font-family:var(--mono);color:var(--amber-dim);font-weight:700;font-size:.74rem;letter-spacing:.16em;display:block;margin-bottom:.5rem}
+  .k{color:var(--amber);font-weight:700}.g{color:var(--green);font-weight:700}
+  .callout{border-left:3px solid var(--amber);padding:.3rem 0 .3rem 1.2rem;margin:1.3rem 0;color:var(--fg)}
+  .callout.no{border-left-color:var(--danger)}
+  pre{background:#0a0e14;color:#e8e2cf;border:1px solid var(--rule);border-radius:12px;padding:1rem 1.1rem;overflow-x:auto;font-family:var(--mono);font-size:.82rem;line-height:1.7}
+  code.inl{font-family:var(--mono);font-size:.9em;background:rgba(162,154,131,.16);padding:.08em .38em;border-radius:5px}
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .8s ease,transform .8s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+  /* the loop diagram */
+  .loop{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:1.4rem 0 .4rem;font-family:var(--mono);font-size:.78rem}
+  @media(min-width:640px){.loop{grid-template-columns:repeat(4,1fr)}}
+  .loop .n{background:var(--sunken);border:1px solid var(--rule);border-radius:11px;padding:11px 12px;text-align:center;position:relative}
+  .loop .n b{display:block;color:var(--amber);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}
+  .loop .n.gate{border-color:var(--amber-dim)}
+  .loop .n.live{animation:pulse 2.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(230,180,90,0)}50%{box-shadow:0 0 18px 0 rgba(230,180,90,.35)}}
+  @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}.reveal{transition:none;opacity:1;transform:none}.loop .n.live{animation:none}}
+  table{width:100%;border-collapse:collapse;font-size:.86rem;margin:1rem 0 0}
+  th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{font-family:var(--mono);font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500}
+  footer{text-align:center;padding:10vh 20px 14vh;color:var(--muted);font-family:var(--mono);font-size:.8rem;position:relative;z-index:2}
+  footer .big{font-family:var(--grot);font-weight:600;font-size:1.3rem;color:var(--fg);max-width:36ch;margin:0 auto 1.2rem;line-height:1.35}
+  footer a{color:var(--amber);text-decoration:none}
+</style>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+<div id="rail"></div>
+<nav>
+  <div class="brand">🧬 AUTO·<b>GENOUS</b></div>
+  <div class="links">
+    <a href="https://github.com/ruvnet/autogenous">github</a>
+    <a href="https://github.com/ruvnet/autogenous/tree/main/docs/adr">ADRs</a>
+  </div>
+</nav>
+
+<section class="hero"><div class="wrap">
+  <span class="pill"><span class="dot"></span> Governed Evolutionary Software · research prototype</span>
+  <h1>Software that evolves.<br>Under a constitution.</h1>
+  <p class="sub">Autogenous turns runtime failures into verified, portable, reversible software adaptations.</p>
+  <p class="lede">Not artificial life. Not a self-rewriting repository. An <b>evolutionary control plane</b>: observe production, propose a fix, prove it beats the parent, canary it, and roll it back the instant it misbehaves.</p>
+  <div><a class="cta" href="https://github.com/ruvnet/autogenous">View the code →</a><a class="cta ghost" href="#loop">How it works</a></div>
+  <div class="proof">
+    <span><b>33 tests</b> · e2e lifecycle proven</span>
+    <span><b>6 Rust crates</b> · typed contract</span>
+    <span><b>AGL + AAP</b> · protocol</span>
+    <span><b>zero</b> unsigned promotions</span>
+  </div>
+</div></section>
+
+<section class="blk" id="loop"><div class="wrap reveal"><div class="card">
+  <span class="num">01 · THE LOOP</span>
+  <h2>Failures become adaptations. Provably.</h2>
+  <div class="loop">
+    <div class="n live"><b>observe</b>production traffic</div>
+    <div class="n"><b>explain</b>signed evidence</div>
+    <div class="n"><b>mutate</b>typed candidates</div>
+    <div class="n"><b>evaluate</b>vs the parent</div>
+    <div class="n gate"><b>proof gates</b>hard AND, min-fitness</div>
+    <div class="n"><b>canary</b>1→10→50→100%</div>
+    <div class="n"><b>promote</b>signed only</div>
+    <div class="n gate"><b>rollback</b>automatic</div>
+  </div>
+  <p>Every arrow is a contract, not a convention. A candidate that fails one gate — safety, governance, false positives, latency, an unverified rollback — is refused no matter how brilliant its other numbers are. <span class="k">min-fitness</span>, never a weighted sum.</p>
+</div></div></section>
+
+<section class="blk"><div class="wrap reveal"><div class="card">
+  <span class="num">02 · THE LANGUAGE</span>
+  <h2>A mutation is not a patch.</h2>
+  <p>Unstructured diffs can't say what they change, where they're valid, or how to undo them. The <span class="k">Autogenous Genome Language (AGL)</span> makes every change a <b>typed transformation between valid genomes</b> that must declare:</p>
+  <pre>what it changes        · why it should work
+where it is valid      · what authority it requires
+which invariants hold  · how it was tested
+when it expires        · how to reverse it</pre>
+  <p>Two rules live in the type system itself: <b>authority never silently expands</b> (a child may request less than its parent's ceiling, never more), and <b>irreversible mutations are inadmissible</b> (no rollback target → no admission).</p>
+</div></div></section>
+
+<section class="blk"><div class="wrap reveal"><div class="card">
+  <span class="num">03 · THE CONSTITUTION</span>
+  <h2>Self-improving is not self-authorizing.</h2>
+  <p>The evolutionary system may rewrite its retrieval, its routing, its code. It may <b>never</b> touch its own constitution — identity, capability ceilings, the evaluator, promotion rules. That plane is hash-pinned and <b>externally governed</b>: changing it takes multiple human signatures and a migration path, outside the loop.</p>
+  <p class="callout no">Otherwise the cheapest path to a higher score is editing the evaluator, widening permissions, or hiding failures. The constitution being unreachable is the whole point.</p>
+</div></div></section>
+
+<section class="blk"><div class="wrap reveal"><div class="card">
+  <span class="num">04 · THE ANTIBODY</span>
+  <h2>Defenses that expire, travel, and roll back.</h2>
+  <p>The first executable profile is the <span class="k">Autogenous Antibody Package (AAP)</span>: a signed, capability-constrained adaptation carrying its trigger, evidence, detector, containment, regression corpus, fitness envelope, lineage, and rollback target.</p>
+  <p>A statistical trigger may <span class="g">quarantine</span> or <span class="g">buffer</span> — it may never take an irreversible action. Every antibody <b>expires unless renewed by fresh evidence</b>. And validated antibodies transfer between deployments <b>without transferring private traffic</b> — federated immunity, data stays local.</p>
+</div></div></section>
+
+<section class="blk"><div class="wrap reveal"><div class="card">
+  <span class="num">05 · PROVEN, OFFLINE</span>
+  <h2>The lifecycle runs today.</h2>
+  <p>The research prototype's end-to-end test does the whole loop with no network and no keys:</p>
+  <table>
+    <tr><th>step</th><th>result</th></tr>
+    <tr><td>novel prompt attack → antibody candidate</td><td>structurally valid</td></tr>
+    <tr><td>replay over 4,000 labeled streams</td><td>recall ≥ 99% · FP &lt; 0.5% · Wilson CIs</td></tr>
+    <tr><td>verifier admission</td><td>admissible + promotable</td></tr>
+    <tr><td>canary 1→10→50→100%</td><td><b>signed</b> promotion (unsigned impossible)</td></tr>
+    <tr><td>capability-expansion attempt, perfect fitness</td><td><b class="g">rejected</b></td></tr>
+    <tr><td>injected regression at 10%</td><td><b class="g">automatic rollback</b></td></tr>
+  </table>
+  <p style="margin-top:1rem"><code class="inl">cargo test</code> — 33 tests across six crates: <code class="inl">constitution</code> · <code class="inl">agl-types</code> · <code class="inl">verifier</code> · <code class="inl">antibody</code> · <code class="inl">evaluator</code> · <code class="inl">promotion</code>.</p>
+</div></div></section>
+
+<section class="blk"><div class="wrap reveal"><div class="card">
+  <span class="num">06 · HONESTY</span>
+  <h2>What this is not. Yet.</h2>
+  <p>This is a <b>research prototype of the control-plane contract</b> — typed, tested, deterministic, offline. It is not yet wired to live MidStream / MetaHarness / RVF / RVM (those components are alpha), the economics are hypotheses until benchmarked, and invented-representation research sits behind a <span class="k">semantic airlock</span>: nothing opaque gets executable authority without being lowered through a known semantic model first.</p>
+  <p>The biggest known failure mode is the system learning to satisfy its evaluator instead of reality. The defenses — hidden rotating evaluations, adversarial testing, capability separation, signed witnesses — are design commitments recorded in <a style="color:var(--amber)" href="https://github.com/ruvnet/autogenous/tree/main/docs/adr">ADR-391/392/393</a>.</p>
+</div></div></section>
+
+<footer>
+  <p class="big">Software is no longer written once and maintained. It is continuously expressed, tested, selected, inherited, and regenerated from evidence — under a constitution it cannot touch.</p>
+  <p><a href="https://github.com/ruvnet/autogenous">github.com/ruvnet/autogenous</a> · AGL · AAP · MIT · rUv</p>
+</footer>
+
+<script>
+(function(){
+  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // progress rail
+  var rail=document.getElementById('rail');
+  function railFn(){var h=document.documentElement.scrollHeight-innerHeight;rail.style.width=(h>0?(scrollY/h)*100:0)+'%'}
+  addEventListener('scroll',function(){requestAnimationFrame(railFn)},{passive:true});railFn();
+  // reveals
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.14});
+  document.querySelectorAll('.reveal').forEach(function(el){io.observe(el)});
+  // starfield — amber-tinted organism dust
+  var cv=document.getElementById('stars'),x=cv.getContext('2d'),stars=[],W,H,r;
+  function resize(){r=devicePixelRatio||1;W=cv.width=innerWidth*r;H=cv.height=innerHeight*r;stars=[];var n=Math.min(140,(innerWidth*innerHeight)/10000);for(var i=0;i<n;i++)stars.push({x:Math.random()*W,y:Math.random()*H,z:Math.random()*.7+.3,s:Math.random()*1.3*r+.3})}
+  resize();addEventListener('resize',resize);
+  function draw(){x.clearRect(0,0,W,H);for(var i=0;i<stars.length;i++){var st=stars[i];x.globalAlpha=st.z*.5;x.fillStyle=(i%7===0)?'#e6b45a':'#a29a83';x.beginPath();x.arc(st.x,st.y,st.s,0,7);x.fill();if(!reduce){st.y+=st.z*.1*r;if(st.y>H){st.y=0;st.x=Math.random()*W}}}x.globalAlpha=1;if(!reduce)requestAnimationFrame(draw)}
+  draw();
+})();
+</script>
+</body>
+</html>

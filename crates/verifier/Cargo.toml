@@ -1,0 +1,13 @@
+[package]
+name = "verifier"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous AGL verifier: admission verdicts composing constitution pinning, typed mutation admission, prohibited effects, and hard fitness gates (ADR-392 Phase 3)."
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+constitution = { path = "../constitution" }
+serde = { workspace = true }

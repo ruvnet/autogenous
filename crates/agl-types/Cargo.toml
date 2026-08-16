@@ -1,0 +1,17 @@
+# agl-types — the Autogenous Genome Language typed mutation specification
+# (ADR-392 §5/§6, ADR-393 MVP component 1). Self-contained [workspace].
+[package]
+name = "agl-types"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+license = "MIT"
+description = "Autogenous Genome Language (AGL) core types: genomes, typed mutations, authority classes, hard invariants, and vector fitness with hard-gate promotion. The typed mutation specification of the Autogenous Runtime."
+repository = "https://github.com/ruvnet/autogenous"
+keywords = ["autogenous", "evolution", "governance", "mutation", "agl"]
+categories = ["data-structures"]
+
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

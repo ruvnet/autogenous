@@ -1,0 +1,22 @@
+# Autogenous Runtime — governed evolutionary control plane (ADR-392/393).
+[workspace]
+resolver = "2"
+members = [
+  "crates/constitution",
+  "crates/agl-types",
+  "crates/verifier",
+  "crates/antibody",
+  "crates/evaluator",
+  "crates/promotion",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.74"
+license = "MIT"
+repository = "https://github.com/ruvnet/autogenous"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"

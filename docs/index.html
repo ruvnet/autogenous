@@ -57,7 +57,21 @@
   .loop .n.gate{border-color:var(--amber-dim)}
   .loop .n.live{animation:pulse 2.6s ease-in-out infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(230,180,90,0)}50%{box-shadow:0 0 18px 0 rgba(230,180,90,.35)}}
-  @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}.reveal{transition:none;opacity:1;transform:none}.loop .n.live{animation:none}}
+  @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}.reveal{transition:none;opacity:1;transform:none}.loop .n.live{animation:none}.mesh .frame{animation:none;opacity:0}.mesh .mixer{animation:none}}
+  /* the streaming-mesh animation: signed frames flow from peers into the mixer */
+  .mesh{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin:1.4rem 0 .6rem;font-family:var(--mono);font-size:.72rem}
+  .mesh .peers{display:flex;flex-direction:column;gap:10px}
+  .mesh .peer{background:var(--sunken);border:1px solid var(--rule);border-radius:10px;padding:8px 10px;text-align:center}
+  .mesh .peer b{display:block;color:var(--amber);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase}
+  .mesh .lanes{position:relative;width:clamp(70px,14vw,130px);height:130px}
+  .mesh .lane{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,var(--rule),var(--amber-dim))}
+  .mesh .lane:nth-child(1){top:22%}.mesh .lane:nth-child(2){top:50%}.mesh .lane:nth-child(3){top:78%}
+  .mesh .frame{position:absolute;width:7px;height:7px;border-radius:2px;background:var(--amber);box-shadow:0 0 8px var(--amber);animation:flow 2.4s linear infinite}
+  .mesh .frame.f1{top:calc(22% - 3px)}.mesh .frame.f2{top:calc(50% - 3px);animation-delay:.8s}.mesh .frame.f3{top:calc(78% - 3px);animation-delay:1.6s}
+  @keyframes flow{0%{left:-4%;opacity:0}12%{opacity:1}86%{opacity:1}100%{left:100%;opacity:0}}
+  .mesh .mixer{background:var(--card);border:1px solid var(--amber-dim);border-radius:12px;padding:14px 12px;text-align:center;animation:pulse 2.4s ease-in-out infinite}
+  .mesh .mixer b{display:block;color:var(--amber);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}
+  .mesh .mixer .sig{color:var(--green);font-size:.64rem}
   table{width:100%;border-collapse:collapse;font-size:.86rem;margin:1rem 0 0}
   th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
   th{font-family:var(--mono);font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500}
@@ -84,9 +98,9 @@
   <p class="lede">Not artificial life. Not a self-rewriting repository. An <b>evolutionary control plane</b>: observe production, propose a fix, prove it beats the parent, canary it, and roll it back the instant it misbehaves.</p>
   <div><a class="cta" href="https://github.com/ruvnet/autogenous">View the code →</a><a class="cta ghost" href="#loop">How it works</a></div>
   <div class="proof">
-    <span><b>33 tests</b> · e2e lifecycle proven</span>
-    <span><b>6 Rust crates</b> · typed contract</span>
-    <span><b>AGL + AAP</b> · protocol</span>
+    <span><b>71 + 81 tests</b> · Rust plane + live mesh</span>
+    <span><b>9/9</b> security-review findings closed</span>
+    <span><b>live</b> on 4 frontier models</span>
     <span><b>zero</b> unsigned promotions</span>
   </div>
 </div></section>
@@ -153,13 +167,45 @@ when it expires        · how to reverse it</pre>
   <h2>A streaming mixture of agents. Signed, live.</h2>
   <p><code class="inl">packages/radio-moe</code> (ADR-395–399) runs a 3-peer expert mesh against <b>real hosted models</b>: each peer streams ed25519-signed <code class="inl">AgentFrame</code>s, every frame is folded into the shared trajectory the instant it arrives, and the whole run is packaged as a tamper-evident <b>RVF witness chain</b>.</p>
   <p><a href="https://github.com/ruvnet/autogenous/blob/main/docs/adr/ADR-399-provider-backed-mesh-run-rvm-rvf.md"><img src="assets/mesh-run.svg" alt="Live mesh run: 107 signed frames over OpenRouter in 1.77s, trajectory verified" style="max-width:100%;border-radius:10px"/></a></p>
-  <p>Live-verified over OpenRouter: <b>107 signed frames</b> from 3 concurrent expert streams in <b>1.77&thinsp;s</b>, 107/107 signatures verified, trajectory root re-derived. Offline, the same pipeline runs with zero keys — <code class="inl">npm run mesh</code>.</p>
+  <p>Live-verified twice over: <b>107 signed frames</b> from 3 <code class="inl">gpt-4o-mini</code> streams in <b>1.77&thinsp;s</b> — then a <b>heterogeneous four-model mixture</b> (<code class="inl">claude-opus-5-fast</code> · <code class="inl">gemini-3.7-flash</code> · <code class="inl">grok-4.6</code> · <code class="inl">kimi-k3</code>): <b>114/114 frames verified</b>, all four independently converging on the same core claim. Gemini also runs <b>direct on GCP</b> (Vertex, IAM auth).</p>
+  <p>The mesh crosses processes over a <b>signed TCP transport</b> — bound envelopes, ordered verification, replay windows, receiver-issued in-frame stream nonces — and its hot paths are measured: batch signing verifies <b>12× faster</b> (201k frames/s), persistent sockets carry <b>3.2×</b> more envelopes. <code class="inl">examples/</code> has seven runnables, offline-first.</p>
 </div></div></section>
 
 <section class="blk"><div class="wrap reveal"><div class="card">
-  <span class="num">07 · HONESTY</span>
+  <span class="num">07 · DOGFOOD</span>
+  <h2>The mesh designed its own upgrades.<br>Then caught our bugs.</h2>
+  <div class="mesh" aria-hidden="true">
+    <div class="peers">
+      <div class="peer"><b>architect</b>claude</div>
+      <div class="peer"><b>implementer</b>codex</div>
+      <div class="peer"><b>reviewer</b>gemini</div>
+    </div>
+    <div class="lanes"><div class="lane"></div><div class="lane"></div><div class="lane"></div>
+      <div class="frame f1"></div><div class="frame f2"></div><div class="frame f3"></div></div>
+    <div class="mixer"><b>mixture</b>g<sub>i</sub>(t) · fold<span class="sig">✓ ed25519 · RVF chain</span></div>
+  </div>
+  <p>A three-role pod ran as real streaming experts with <b>deliberately decorrelated briefs</b> and designed the mesh's next features — replay binding, evidence partitioning, graded lineage independence. We implemented to their designs. Then a mesh reviewer read the implementation and <b class="g">found two real security bugs</b> — unauthenticated lineages that let one signature fake a quorum, and an over-strict check that rejected honest certificates. Both fixed, with attack tests.</p>
+  <p>The novelty was adversarially verified too: a 24-source research pass (3 independent votes per claim) confirmed <b>continuous claim-level mid-stream fusion is unoccupied territory</b>, no deployed agent protocol mandates per-message claim provenance, and correlated-error quorum weighting is <b>motivated in the literature but built nowhere else</b>.</p>
+</div></div></section>
+
+<section class="blk"><div class="wrap reveal"><div class="card">
+  <span class="num">08 · SELF-EVOLVING</span>
+  <h2>The mesh now evolves itself. Inside the fence.</h2>
+  <p>The flywheel turns on the mesh's <b>own</b> tunables — and only the constitutionally evolvable ones. Independence weights and quorum thresholds mutate inside frozen ceilings; the hard gates, signatures, and fail-closed semantics are constants evolution <b>cannot reach by construction</b>.</p>
+  <table>
+    <tr><th>flywheel turn</th><th>result</th></tr>
+    <tr><td>seed 42 · 30 generations</td><td><b class="g">separation +81.8%</b> (0.69 → 1.25), 4 promotions</td></tr>
+    <tr><td>hard gates, every generation</td><td>family 3-stack <b>never reaches quorum</b> · diverse pair always can</td></tr>
+    <tr><td>turn 2, resumed champion</td><td><b>0 promotions</b> — the frozen gate held; honest plateau</td></tr>
+    <tr><td>every generation</td><td>an <b>ed25519-signed receipt</b> in a hash-chained ledger</td></tr>
+  </table>
+  <p style="margin-top:1rem">Deterministic by construction — a seeded generator replaces randomness, so any champion replays from <code class="inl">(seed, generations)</code>. <code class="inl">npm run evolve</code> is one turn; the champion persists, so the loop is perpetual.</p>
+</div></div></section>
+
+<section class="blk"><div class="wrap reveal"><div class="card">
+  <span class="num">09 · HONESTY</span>
   <h2>What this is not. Yet.</h2>
-  <p>This is a <b>research prototype of the control-plane contract</b> — typed, tested, deterministic, offline. It is not yet wired to live MidStream / MetaHarness / RVF / RVM (those components are alpha), the economics are hypotheses until benchmarked, and invented-representation research sits behind a <span class="k">semantic airlock</span>: nothing opaque gets executable authority without being lowered through a known semantic model first.</p>
+  <p>Still a <b>research prototype</b> — now live on real models, but honest about the edges: token-level (logit) mixing needs shared tokenizers hosted APIs don't expose; the TCP transport is integrity-only (production needs QUIC+mTLS); the external metaharness flywheel <b>fails closed</b> awaiting a human-labelled anchor — correctly; the evolved champion plateaus on its fixed bench; and one research claim that could reshape quorum weighting remains unverified. Invented-representation work stays behind a <span class="k">semantic airlock</span>.</p>
   <p>The biggest known failure mode is the system learning to satisfy its evaluator instead of reality. The defenses — hidden rotating evaluations, adversarial testing, capability separation, signed witnesses — are design commitments recorded in <a style="color:var(--amber)" href="https://github.com/ruvnet/autogenous/tree/main/docs/adr">ADR-391/392/393</a>.</p>
 </div></div></section>
 

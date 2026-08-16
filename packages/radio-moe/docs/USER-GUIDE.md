@@ -12,6 +12,7 @@ linked from each section.
 - [5. Running against real models](#5-running-against-real-models)
 - [6. Self-evolving the mesh (the flywheel)](#6-self-evolving-the-mesh)
 - [7. Defeating false consensus (lineage-weighted fusion)](#7-defeating-false-consensus)
+- [8. Fail-closed boundaries (admit, verify, disclose)](#8-fail-closed-boundaries-admit-verify-disclose)
 - [Mental model & glossary](#mental-model--glossary)
 
 ---
@@ -219,6 +220,58 @@ greedy min-pairwise independence over supporter provider/arch/size — so N
 correlated supporters count far less than N independent ones. Unknown lineage is
 **fail-closed** (shares an `'unknown'` bucket, never granted independence). See
 [ADR-401](../../../docs/adr/ADR-401-perpetual-intelligence-machine.md).
+
+---
+
+## 8. Fail-closed boundaries (admit, verify, disclose)
+
+Three more guards wrap the pipeline's edges. All are opt-in, composable, and
+**fail-closed** — the default when something is missing or unproven is to reject,
+not to trust.
+
+**Admit an observation before it becomes evidence** (ADR-402). A perception is
+inadmissible unless every required field is present and current:
+
+```ts
+import { admitObservation, confidenceTier } from 'radio-moe';
+
+const d = admitObservation({
+  sourceId: 'csi-3', location: 'room-204', kind: 'motion-changed', value: { delta: 'stopped' },
+  confidence: 0.7, privacyClass: 'restricted', calibrationVersion: 'cal-2026-08',
+  issuedAt: now - 1, expiresAt: now + 30_000,
+}, now, { minSensorHealth: 0.5 });
+// d.admissible === false, d.rejection === 'missing-calibration' | 'expired' | 'unhealthy-sensor' | …
+confidenceTier(obs); // 'update-world-model' | 'request-more-sensing' | 'authorized-workflow'
+```
+
+The `authorized-workflow` tier is *eligibility only* — an actual action still
+needs independent corroboration at the `ActionGate`.
+
+**Verify an outcome before a durable write** (ADR-401 Dec 2 — the one
+false-consensus mitigation with a measured effect size). A write is admitted only
+when independent **external** verifiers (not the outcome's producers) affirm it and
+no external verifier refutes it:
+
+```ts
+import { outcomeHash, signOutcomeVerdict, admitDurableWrite } from 'radio-moe';
+
+const hash = outcomeHash(outcome);
+const verdicts = [ signOutcomeVerdict(v1, { outcomeHash: hash, verifierId: v1.peerId, stance: 'affirm', verified: true, reason: 'checked' }) ];
+const gate = admitDurableWrite(hash, verdicts, { trustedVerifiers, contributorIds, minAffirmations: 2 });
+// gate.admit === false with rejection 'no-external-verifier' | 'insufficient-affirmation' | 'refuted' | 'insufficient-independence'
+```
+
+**Disclose across an org boundary without leaking raw data** (ADR-401 cap 6). A
+signed disclosure carries only the claim, a confidence, and evidence *digests* at
+or below a privacy ceiling — never raw payloads:
+
+```ts
+import { discloseFinding, verifyDisclosure } from 'radio-moe';
+
+const disclosure = discloseFinding(peer, finding, { maxPrivacyClass: 'internal' }, now);
+// restricted/sensitive evidence is dropped; finding.raw and evidence payloads never appear
+verifyDisclosure(disclosure, peer.publicKeyDer.toString('hex')); // receiver checks provenance + confidence
+```
 
 ---
 

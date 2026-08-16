@@ -69,6 +69,32 @@ pub fn verify_hex(pubkey_hex: &str, msg: &[u8], sig_hex: &str) -> bool {
     vk.verify(msg, &Signature::from_bytes(&sig)).is_ok()
 }
 
+/// A detached seal binding an issuer to a subject content hash — the lightweight
+/// per-artifact form (vs. the chained [`WitnessRecord`]). Used by the lineage
+/// store to seal individual nodes.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WitnessSeal {
+    pub subject_hash: String,
+    pub issuer_pubkey: String,
+    pub signature: String,
+}
+
+impl SigningAuthority {
+    /// Seal a subject content hash.
+    pub fn seal(&self, subject_hash: &str) -> WitnessSeal {
+        WitnessSeal {
+            subject_hash: subject_hash.to_string(),
+            issuer_pubkey: self.public_hex(),
+            signature: self.sign_hex(subject_hash.as_bytes()),
+        }
+    }
+}
+
+/// Verify a detached seal — malformed inputs return `false`, never panic.
+pub fn verify_seal(seal: &WitnessSeal) -> bool {
+    verify_hex(&seal.issuer_pubkey, seal.subject_hash.as_bytes(), &seal.signature)
+}
+
 /// What a witness record attests to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

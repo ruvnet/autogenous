@@ -18,7 +18,10 @@
     "pubsub"
   ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -29,7 +32,10 @@
     "evolve": "node --import tsx examples/evolve-run.ts",
     "example:custom": "node --import tsx examples/custom-harness.ts",
     "bench:fusion": "node --import tsx examples/bench-fusion.ts",
-    "bench:failover": "node --import tsx examples/bench-failover.ts"
+    "bench:failover": "node --import tsx examples/bench-failover.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@metaharness/radio": "^0.1.0"
@@ -44,5 +50,17 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "docs",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

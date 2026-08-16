@@ -20,6 +20,7 @@ import {
 import { verifyFrame, type AgentFrame } from '../src/agent-frame.js';
 import { packageTrajectory, verifyTrajectory } from '../src/rvf-trajectory.js';
 import { openRouterExpert } from '../src/http-experts.js';
+import { partitionEvidence, type EvidenceRef, type Feed } from '../src/evidence-feeds.js';
 
 const CONTEXT =
   'Context: radio-moe (ruvnet/autogenous packages/radio-moe) — a streaming agent mesh: ' +
@@ -67,8 +68,22 @@ const BRIEFS: { role: string; backend: 'claude' | 'codex'; question: string }[] 
   },
 ];
 
-function expertFor(brief: (typeof BRIEFS)[number], identity: PeerIdentity): { run(prompt: string, requestId: string, signal?: AbortSignal): AsyncGenerator<AgentFrame> } {
-  const prompt = `${CONTEXT}\n\nYOUR QUESTION (${brief.role}): ${brief.question}`;
+// Decorrelated evidence: partition a shared pool into per-role slices so no two
+// experts see identical context (ReM-MoA mandate; practices research item 1 while
+// building it — same as examples/custom-harness.ts).
+const EVIDENCE_POOL: EvidenceRef[] = [
+  { id: 'adr-396-replay-window', relevance: 0.9, stance: 1 },
+  { id: 'icml-2025-correlated-errors', relevance: 0.85, stance: -1 },
+  { id: 'rem-moa-diversity-collapse', relevance: 0.8, stance: 1 },
+  { id: 'aip-completion-selfreport-gap', relevance: 0.75, stance: -1 },
+  { id: 'ann-signed-frame-provenance', relevance: 0.6, stance: 0 },
+  { id: 'tcp-envelope-sequence-notes', relevance: 0.5, stance: 0 },
+];
+const FEEDS = partitionEvidence(EVIDENCE_POOL, BRIEFS.map((b) => b.role), 2);
+
+function expertFor(brief: (typeof BRIEFS)[number], identity: PeerIdentity, feed: Feed): { run(prompt: string, requestId: string, signal?: AbortSignal): AsyncGenerator<AgentFrame> } {
+  const slice = feed.refs.length ? `\nYOUR PRIVATE evidence slice (${feed.mode}): ${feed.refs.map((e) => e.id).join(', ')}.` : '';
+  const prompt = `${CONTEXT}${slice}\n\nYOUR QUESTION (${brief.role}): ${brief.question}`;
   if (process.env.OPENROUTER_API_KEY) {
     const model = OR_MODELS[brief.role] ?? 'openai/gpt-4o-mini';
     const inner = openRouterExpert(brief.role, identity, [1], { model });
@@ -88,7 +103,7 @@ function expertFor(brief: (typeof BRIEFS)[number], identity: PeerIdentity): { ru
 
 const peers = BRIEFS.map((brief) => {
   const identity = PeerIdentity.generate();
-  return { brief, identity, expert: expertFor(brief, identity) };
+  return { brief, identity, expert: expertFor(brief, identity, FEEDS.get(brief.role)!) };
 });
 
 console.log(`dogfood pod: ${peers.map((p) => `${p.brief.role}[${p.brief.backend}](${p.identity.peerId})`).join(', ')}\n`);

@@ -8,6 +8,13 @@
 import { createHash, verify as edVerify } from 'node:crypto';
 import { canonicalBytes } from './agent-frame.js';
 import type { PeerIdentity } from './transport.js';
+import {
+  DEFAULT_INDEPENDENCE_WEIGHTS,
+  effectiveSupport,
+  type IndependenceWeights,
+  type LineageSupport,
+  type ModelLineage,
+} from './lineage-independence.js';
 
 const DEFAULT_MAX_SUPPORTS = 16;
 const DEFAULT_MAX_PROVENANCE_IDS = 64;
@@ -39,6 +46,10 @@ export interface UnsignedActionSupport {
   /** Risk estimate for this exact action in [0, 1]. */
   risk: number;
   action: GovernedAction;
+  /** Optional signed model lineage (provider/arch/size/modelId). When present and
+   *  the gate is configured with `gradedIndependence`, correlated lineage is
+   *  discounted via effectiveSupport rather than counted as one binary vote. */
+  lineage?: ModelLineage;
   issuedAt: number;
   expiresAt: number;
 }
@@ -65,6 +76,13 @@ export interface ActionGateOptions {
   maxSupportBytes?: number;
   maxSupportTtlMs?: number;
   clockSkewMs?: number;
+  /** Opt-in graded-independence AND-gate (ADR-401 cap 3). When set, in addition to
+   *  the binary quorum the authenticated matching supports must reach
+   *  `minimumEffectiveSupport` lineage-discounted effective support. Strictly
+   *  tightening: a same-provider/arch stack that passes the binary count can still
+   *  fail here. Supports SHOULD carry a signed `lineage`; absent lineage is
+   *  fail-closed (shared 'unknown' bucket → heavily discounted). */
+  gradedIndependence?: { minimumEffectiveSupport: number; weights?: IndependenceWeights };
 }
 
 interface FrozenPolicy {
@@ -77,11 +95,16 @@ interface FrozenPolicy {
   readonly maxSupportBytes: number;
   readonly maxSupportTtlMs: number;
   readonly clockSkewMs: number;
+  readonly gradedIndependence?: {
+    readonly minimumEffectiveSupport: number;
+    readonly weights: IndependenceWeights;
+  };
 }
 
 export type ActionRejection =
   | 'inadmissible'
   | 'insufficient-independent-quorum'
+  | 'insufficient-effective-support'
   | 'risk-threshold'
   | 'action-mismatch';
 
@@ -92,7 +115,21 @@ export interface ActionDecision {
   risk: number;
   /** Authenticated proposals for other action identities, ignored rather than vetoing. */
   mismatchedSupport: number;
+  /** Lineage-discounted effective independent support (only when graded mode is on). */
+  effectiveSupport?: number;
   rejection?: ActionRejection;
+}
+
+/** Map a support to a lineage-tagged supporter for the graded quorum. Absent
+ *  lineage is fail-closed: a shared 'unknown' provider/arch bucket, so unproven
+ *  provenance is discounted rather than counted as independent. */
+function toLineageSupport(s: ActionSupport): LineageSupport {
+  return {
+    agentId: s.agentId,
+    principalId: s.principalId,
+    lineage: s.lineage ?? { provider: 'unknown', arch: 'unknown', sizeClass: 'M', modelId: s.modelId },
+    sourceIds: s.sourceIds,
+  };
 }
 
 /** Sign one canonical support statement. The signer id must be its admitted agent id. */
@@ -173,6 +210,17 @@ export class ActionGate {
     if (trusted.size === 0 || trusted.size > maxSupports) throw new RangeError('trustedSigners must be non-empty and bounded');
     for (const [agentId, key] of trusted) assertTrustedSigner(agentId, key);
     this.trustedSigners = Object.freeze(Object.fromEntries(trusted));
+    let graded: FrozenPolicy['gradedIndependence'];
+    if (options.gradedIndependence) {
+      const m = options.gradedIndependence.minimumEffectiveSupport;
+      if (!Number.isFinite(m) || m < 1 || m > maxSupports) {
+        throw new RangeError('minimumEffectiveSupport must be a finite number in [1, maxSupports]');
+      }
+      graded = Object.freeze({
+        minimumEffectiveSupport: m,
+        weights: options.gradedIndependence.weights ?? DEFAULT_INDEPENDENCE_WEIGHTS,
+      });
+    }
     this.policy = Object.freeze({
       minimumQuorum,
       riskThreshold: options.riskThreshold,
@@ -183,6 +231,7 @@ export class ActionGate {
       maxSupportBytes: boundedInteger(options.maxSupportBytes ?? DEFAULT_MAX_SUPPORT_BYTES, 1, DEFAULT_MAX_SUPPORT_BYTES, 'maxSupportBytes'),
       maxSupportTtlMs: boundedInteger(options.maxSupportTtlMs ?? DEFAULT_MAX_SUPPORT_TTL_MS, 1, DEFAULT_MAX_SUPPORT_TTL_MS, 'maxSupportTtlMs'),
       clockSkewMs: boundedInteger(options.clockSkewMs ?? DEFAULT_CLOCK_SKEW_MS, 0, DEFAULT_CLOCK_SKEW_MS, 'clockSkewMs'),
+      ...(graded ? { gradedIndependence: graded } : {}),
     });
   }
 
@@ -205,7 +254,15 @@ export class ActionGate {
 
     const independent = independentSupportSet(matching);
     const risk = matching.length === 0 ? 1 : Math.max(...matching.map((entry) => entry.risk));
-    const base = { actionId: id, independentSupport: independent, risk, mismatchedSupport };
+    const graded = this.policy.gradedIndependence;
+    const effective = graded ? effectiveSupport(matching.map(toLineageSupport), graded.weights) : undefined;
+    const base = {
+      actionId: id,
+      independentSupport: independent,
+      risk,
+      mismatchedSupport,
+      ...(effective !== undefined ? { effectiveSupport: effective } : {}),
+    };
     if (matching.length === 0 && mismatchedSupport > 0) {
       return { ...base, execute: false, rejection: 'action-mismatch' };
     }
@@ -217,6 +274,11 @@ export class ActionGate {
     }
     if (risk >= this.policy.riskThreshold) {
       return { ...base, execute: false, rejection: 'risk-threshold' };
+    }
+    // Graded AND-gate (opt-in, strictly tightening): a same-lineage stack that
+    // cleared the binary quorum can still fail the lineage-discounted quorum.
+    if (graded && (effective ?? 0) < graded.minimumEffectiveSupport) {
+      return { ...base, execute: false, rejection: 'insufficient-effective-support' };
     }
     return { ...base, execute: true };
   }

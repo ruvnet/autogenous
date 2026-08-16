@@ -133,7 +133,7 @@ import { ActionGate, signActionSupport, independentSupportSet, DeterministicShad
 
 | Export | Kind | Summary |
 |---|---|---|
-| `ActionGate` | class | `new ActionGate({ trustedSigners, minimumQuorum, riskThreshold, admissible, ... })`; `evaluate(action, supports, now?) → ActionDecision`. |
+| `ActionGate` | class | `new ActionGate({ trustedSigners, minimumQuorum, riskThreshold, admissible, gradedIndependence?, ... })`; `evaluate(action, supports, now?) → ActionDecision`. Opt-in `gradedIndependence: { minimumEffectiveSupport }` adds a strictly-tightening lineage-discounted quorum (§4) — a same-provider/arch clique that passes the binary count fails here; supports may carry a signed `lineage`, absent lineage is fail-closed. |
 | `signActionSupport(identity, unsigned)` | fn | Sign an action support. |
 | `actionIdentity(action, maxBytes?)` | fn | Canonical action id. |
 | `supportsAreIndependent(a, b)` / `independentSupportSet(supports)` | fn | **Binary** independence (distinct modelId ∧ disjoint sourceIds) — the graded upgrade is `effectiveSupport` (§4). |

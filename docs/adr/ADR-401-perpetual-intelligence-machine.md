@@ -1,7 +1,7 @@
 # ADR-401 — The Perpetual Intelligence Machine (capability synthesis + acceptance test)
 
 - Status: Accepted (framing + capability map) · Partial (implementation)
-- Date: 2026-08-16 · Updated: 2026-08-16 (Update 1 — new-angles research landed, two overclaims corrected; V1 milestone #2 built & passing — fusion beats best-single, lineage-weighted fusion defeats correlated false consensus)
+- Date: 2026-08-16 · Updated: 2026-08-16 (Update 1 — new-angles research landed, two overclaims corrected; V1 milestone #2 built & passing — fusion beats best-single, lineage-weighted fusion defeats correlated false consensus; action gate graded-independence seam closed — opt-in effectiveSupport quorum, clique-resistant)
 - Related: ADR-395 (radio mesh), ADR-396 (peer-expert protocol + governed evolution), ADR-397 (streaming mixture of agents), ADR-398 (dev-loop integration), ADR-399 (provider-backed runs, RVM/RVF, real midstream), ADR-400 (self-evolving flywheel), metaharness ADR-322 (flywheel receipts/promotion)
 - Supersedes nothing; this ADR is the **product-level synthesis** over the ADR-395…400 substrate.
 
@@ -113,11 +113,14 @@ Status legend: **Built** (in `packages/radio-moe/src`, tested) · **Partial**
    reusable exported module `src/lineage-decision.ts` (`lineageWeightedWinner`
    re-resolves a mixture snapshot's winner by `effectiveSupport`, fail-closed on
    unknown lineage), dogfooded by the bench and unit-tested
-   (`test/lineage-decision.test.ts`). **Remaining seam**: the action gate's
-   `independentSupportSet` is still *binary* (distinct modelId ∧ disjoint
-   sourceIds) — upgrading it to the graded `effectiveSupport` quorum is
-   security-sensitive (it changes when actions execute) and is the next
-   checkpoint item.
+   (`test/lineage-decision.test.ts`). **Seam now closed**: `ActionGate` takes an
+   opt-in `gradedIndependence: { minimumEffectiveSupport }` — a strictly-tightening
+   AND-gate requiring the authenticated matching supports to clear a
+   lineage-discounted `effectiveSupport` quorum on top of the binary count. A
+   same-provider/arch clique that passes the binary quorum now **fails** the
+   graded quorum; a genuinely independent set clears both; absent lineage is
+   fail-closed. Default behavior unchanged (opt-in). Proven by
+   `test/action-gate-graded.test.ts`.
 3. **Measurable learning from outcomes** — flywheel promotion ledger
    (`mesh-evolve.ts`); measured +81.8% separation then honest plateau (ADR-400).
    Ties into the already-queued bench-widening.

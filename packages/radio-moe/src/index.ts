@@ -139,6 +139,7 @@ export { RelevanceScorer, tokenize, bagCosine } from './relevance.js';
 // only; production requires QUIC+mTLS or equivalent).
 export {
   TcpPeerNode,
+  TcpConnection,
   sealEnvelope,
   sendEnvelope,
   verifyEnvelope,
@@ -151,3 +152,6 @@ export {
   type VerifyContext,
   type TcpNodeOptions,
 } from './tcp-transport.js';
+
+// ADR-396 production profile: hash-chained batch signing (1 signature per batch).
+export { sealBatch, verifyBatch, BatchSigner, MAX_BATCH, type BatchSeal } from './batch-signing.js';

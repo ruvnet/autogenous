@@ -216,3 +216,32 @@ trajectory root verified. This meets ADR-395's acceptance criterion #1 ("two
 direct peers stream a text response end to end") on the reference adapter.
 Next: the same run across actual tailnet machines (ruvultra ↔ zenbook) and TCP
 as an alternative `DataTransport` in the in-process mesh route path.
+
+## Update 6 (2026-08-16): ultra-optimize — the two measured hot paths
+
+Measure-first: the bench identified per-frame ed25519 verify (~0.06 ms) and
+connect-per-envelope TCP as the only real hot paths (hash chains already run
+at ~150k frames/s; the Rust plane is at µs). Both ADR-396-specified
+optimizations are now implemented and measured (N=1000, loopback):
+
+| Path | Before | After | Gain |
+|---|---|---|---|
+| Frame verification | 16,806 frames/s (1000 sigs) | **201,714 frames/s** (16 batch sigs) | **12.0×** |
+| Frame signing | 40,448 frames/s | 228,896 frames/s | 5.7× |
+| TCP envelope throughput | 3,219 env/s (conn-per-envelope) | **10,182 env/s** (persistent socket) | **3.2×** |
+
+- `src/batch-signing.ts` — ADR-396's production profile verbatim: bounded
+  (≤64) hash-chained batches, ONE ed25519 signature per batch over the chain
+  root; the receiver recomputes the chain (hash-speed) then verifies one
+  signature. Order-preserving by construction — tamper, reorder, drop, and
+  wrong-key all fail (adversarially tested). `BatchSigner` accumulates a
+  stream and flushes on batch-full or end-of-stream, so authentication is
+  never deferred unboundedly.
+- `TcpConnection` — one persistent, backpressure-aware socket per
+  (peer, stream) with TCP_NODELAY, replacing connect-send-close per envelope
+  (which remains as the trivial reference path).
+
+Trade-off recorded honestly: batch signing amortizes integrity over ≤64 frames
+— a receiver exposes output only after its batch authenticates (ADR-396's
+condition), so worst-case added latency is one batch window; per-frame signing
+remains the default for adversarial/low-trust profiles. 70 package tests.

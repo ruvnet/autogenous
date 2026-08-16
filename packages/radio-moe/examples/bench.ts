@@ -9,6 +9,8 @@ import {
   endlessMixLoop,
   type EventParser,
 } from '../src/streaming-experts.js';
+import { BatchSigner, verifyBatch, type BatchSeal } from '../src/batch-signing.js';
+import { TcpPeerNode, TcpConnection, sealEnvelope, sendEnvelope } from '../src/tcp-transport.js';
 
 const N = Number(process.env.BENCH_N ?? 1000);
 const id = PeerIdentity.generate();
@@ -74,3 +76,63 @@ console.log(`  verify          ${verifyMs.toFixed(1).padStart(8)} ms  → ${fmt(
 console.log(`  package chain   ${packageMs.toFixed(1).padStart(8)} ms  → ${fmt(N / (packageMs / 1000))} frames/s`);
 console.log(`  verify chain    ${chainVerifyMs.toFixed(1).padStart(8)} ms  → ${fmt(N / (chainVerifyMs / 1000))} frames/s`);
 console.log(`  e2e fold loop   ${e2eMs.toFixed(1).padStart(8)} ms  → ${fmt(folded / (e2eMs / 1000))} frames/s (${folded} frames, 3 subprocess experts)`);
+
+// 5. ADR-396 batch profile vs per-frame verification (the optimization target).
+{
+  const signer = new BatchSigner(id, 'bench', 'bench-agent', 64);
+  const seals: BatchSeal[] = [];
+  t = performance.now();
+  for (const f of frames) {
+    const s = signer.push(f);
+    if (s) seals.push(s);
+  }
+  const tail = signer.flush();
+  if (tail) seals.push(tail);
+  const batchSignMs = performance.now() - t;
+  t = performance.now();
+  let off = 0;
+  let allOk = true;
+  for (const s of seals) {
+    allOk = verifyBatch(s, frames.slice(off, off + s.count), key) && allOk;
+    off += s.count;
+  }
+  const batchVerifyMs = performance.now() - t;
+  if (!allOk) throw new Error('batch verification failed');
+  console.log(`  batch sign (64) ${batchSignMs.toFixed(1).padStart(8)} ms  → ${fmt(N / (batchSignMs / 1000))} frames/s (${seals.length} sigs vs ${N})`);
+  console.log(`  batch verify    ${batchVerifyMs.toFixed(1).padStart(8)} ms  → ${fmt(N / (batchVerifyMs / 1000))} frames/s (${(verifyMs / batchVerifyMs).toFixed(1)}x vs per-frame)`);
+}
+
+// 6. TCP: connect-per-envelope vs one persistent connection (loopback).
+{
+  const origin = id;
+  const receiver = (await import('../src/transport.js')).PeerIdentity.generate();
+  let got = 0;
+  const node = new TcpPeerNode({
+    identity: receiver,
+    trustedPeers: { [origin.peerId]: origin.publicKeyDer.toString('hex') },
+    onEnvelope: () => { got += 1; },
+  });
+  const port = await node.listen(0);
+  const M = 200;
+  const mkEnv = (i: number) => sealEnvelope(origin, {
+    recipientPeer: receiver.peerId, requestId: 'bench-tcp', routeEpoch: 1,
+    senderSequence: i, kind: 'stream.delta', payload: { i },
+  });
+  const drain = async (target: number) => {
+    const t0 = Date.now();
+    while (got < target && Date.now() - t0 < 10_000) await new Promise((r) => setTimeout(r, 5));
+  };
+  t = performance.now();
+  for (let i = 1; i <= M; i++) await sendEnvelope('127.0.0.1', port, mkEnv(i));
+  await drain(M);
+  const perConnMs = performance.now() - t;
+  const conn = new TcpConnection('127.0.0.1', port);
+  t = performance.now();
+  for (let i = M + 1; i <= 2 * M; i++) await conn.send(mkEnv(i));
+  await drain(2 * M);
+  const persistentMs = performance.now() - t;
+  conn.close();
+  await node.close();
+  console.log(`  tcp per-conn    ${perConnMs.toFixed(1).padStart(8)} ms  → ${fmt(M / (perConnMs / 1000))} env/s`);
+  console.log(`  tcp persistent  ${persistentMs.toFixed(1).padStart(8)} ms  → ${fmt(M / (persistentMs / 1000))} env/s (${(perConnMs / persistentMs).toFixed(1)}x)`);
+}

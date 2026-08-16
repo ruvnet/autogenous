@@ -253,20 +253,65 @@ export class TcpPeerNode {
   }
 }
 
+function frameOf(envelope: Envelope): Buffer {
+  const bytes = Buffer.from(JSON.stringify(envelope), 'utf-8');
+  if (bytes.length > MAX_FRAME_BYTES) {
+    throw new Error(`frame exceeds MAX_FRAME_BYTES (${bytes.length})`);
+  }
+  const head = Buffer.alloc(4);
+  head.writeUInt32BE(bytes.length, 0);
+  return Buffer.concat([head, bytes]);
+}
+
 /** Send one framed envelope to a peer node (connect–send–close; the reference
- *  keeps connection lifecycle trivial — pooling is a production concern). */
+ *  keeps connection lifecycle trivial). For streams, use [`TcpConnection`] —
+ *  one socket per (peer, stream) amortizes the TCP handshake over every delta. */
 export function sendEnvelope(host: string, port: number, envelope: Envelope): Promise<void> {
   return new Promise((resolve, reject) => {
-    const bytes = Buffer.from(JSON.stringify(envelope), 'utf-8');
-    if (bytes.length > MAX_FRAME_BYTES) {
-      reject(new Error(`frame exceeds MAX_FRAME_BYTES (${bytes.length})`));
+    let framed: Buffer;
+    try {
+      framed = frameOf(envelope);
+    } catch (e) {
+      reject(e);
       return;
     }
-    const head = Buffer.alloc(4);
-    head.writeUInt32BE(bytes.length, 0);
     const socket = createConnection({ host, port }, () => {
-      socket.end(Buffer.concat([head, bytes]), () => resolve());
+      socket.end(framed, () => resolve());
     });
     socket.on('error', reject);
   });
+}
+
+/** A persistent framed connection to one peer — the streaming-optimized path:
+ *  one TCP handshake, then back-to-back framed envelopes. */
+export class TcpConnection {
+  private socket: Socket | null = null;
+
+  constructor(
+    private readonly host: string,
+    private readonly port: number,
+  ) {}
+
+  private async connect(): Promise<Socket> {
+    if (this.socket !== null && !this.socket.destroyed) return this.socket;
+    this.socket = await new Promise<Socket>((resolve, reject) => {
+      const s = createConnection({ host: this.host, port: this.port, noDelay: true }, () => resolve(s));
+      s.on('error', reject);
+    });
+    return this.socket;
+  }
+
+  /** Write one framed envelope on the persistent socket (backpressure-aware). */
+  async send(envelope: Envelope): Promise<void> {
+    const socket = await this.connect();
+    const framed = frameOf(envelope);
+    await new Promise<void>((resolve, reject) => {
+      socket.write(framed, (err) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  close(): void {
+    this.socket?.end();
+    this.socket = null;
+  }
 }

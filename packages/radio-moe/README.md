@@ -16,7 +16,7 @@ Built on two grounded primitives, kept strictly separate:
 > `@metaharness/radio@0.1.0` is a deterministic in-process bus, **not** a network
 > transport (confirmed against the registry). MoRA preserves it as the local
 > control plane and adds the signed transport for streamed expert data — see
-> [ADR-396](./docs/adr/ADR-396-mora-streaming-moe-p2p.md).
+> [ADR-396](../../docs/adr/ADR-396-peer-expert-protocol-security-and-governed-evolution.md).
 
 ## The one distinction that matters
 
@@ -35,7 +35,7 @@ vocabularies, and the race result is literally typed `regime: 'text-ensemble'`.
 
 ```bash
 npm install
-npm test        # 13 offline, deterministic tests
+npm test        # 57 offline, deterministic tests
 npm run demo    # a 3-peer local mesh — both regimes
 ```
 
@@ -75,12 +75,32 @@ Every data frame is signed by its origin peer; the public key travels with it, a
 its fingerprint must match the claimed `peerId`. A tampered or spoofed frame is
 dropped and counted in `RouteMetrics.rejectedFrames` — never mixed.
 
+The [ADR-397](../../docs/adr/ADR-397-autogenous-streaming-mixture-of-agents.md)
+reference path adds a request-scoped layer above those frames:
+
+```text
+signed AgentFrames → MixtureState → ActionGate → signed output/checkpoint
+                                              ↘ deterministic shadow replica
+```
+
+`MixtureState` continuously folds authenticated claim/evidence contributions with
+deterministic weighting, provenance, contradiction tracking, bounded buffering,
+and replica-stable state hashes. `ActionGate` releases an action only from signed,
+admitted, independently sourced support under an immutable policy. Output
+envelopes bind protocol and route epochs into a hash chain; a shadow retains the
+canonical replay checkpoint and can take over only with a signed fencing grant.
+Legacy text-primary output still fails closed after its first visible delta.
+
 ## Status
 
-Research prototype — the routing, mixing, signing, and two-plane wiring are real
-and tested; experts are reference stubs behind the `Expert` interface, and the
-live WebRTC transport (trystero) is specified in ADR-396, not yet shipped. This
-package is TypeScript by explicit request (the `radio` npm pin).
+Reference implementation — routing, logit mixing/text racing, signed streaming
+frames, deterministic claim/evidence state, independence-aware action gating,
+signed output ordering, replay checkpoints, and fenced shadow takeover are covered
+by **57 passing offline tests**. The included transport remains an in-process test
+fabric; live QUIC/WebRTC transport, hostile-network deployment, production witness
+persistence, and ADR-397's end-to-end quality/latency benchmarks are not yet
+demonstrated. This status therefore does not claim full production readiness or
+full ADR acceptance.
 
 ## License
 

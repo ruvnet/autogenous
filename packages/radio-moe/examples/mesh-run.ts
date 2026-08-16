@@ -35,19 +35,28 @@ function fakeExpert(agentId: string, id: PeerIdentity, words: string[]): Command
 }
 
 const live = Boolean(process.env.OPENROUTER_API_KEY);
-const model = process.env.MESH_MODEL ?? 'openai/gpt-4o-mini';
+// MESH_MODELS: comma-separated, one model per peer (heterogeneous mixture);
+// MESH_MODEL: one model for every peer. Default: a cheap single model.
+const models = (process.env.MESH_MODELS ?? process.env.MESH_MODEL ?? 'openai/gpt-4o-mini')
+  .split(',')
+  .map((m) => m.trim())
+  .filter(Boolean);
+const ROLES = ['architect', 'security', 'perf', 'kimi', 'scout', 'judge'];
 
-const peers = ['architect', 'security', 'perf'].map((role, i) => {
+const peers = models.slice(0, ROLES.length).map((model, i) => {
+  const role = ROLES[i]!;
   const id = PeerIdentity.generate();
-  const cap = [i === 0 ? 1 : 0, i === 1 ? 1 : 0, i === 2 ? 1 : 0];
+  const cap = ROLES.map((_, k) => (k === i ? 1 : 0));
   const expert = live
     ? openRouterExpert(role, id, cap, { model })
     : fakeExpert(role, id, [`${role}:`, ' separate', ' routing', ' from', ' authority.']);
-  return { role, id, expert };
+  return { role, model, id, expert };
 });
 
 console.log(`mesh: ${peers.map((p) => `${p.role}(${p.id.peerId})`).join(', ')}`);
-console.log(`mode: ${live ? `LIVE OpenRouter (${model})` : 'OFFLINE fake experts (no OPENROUTER_API_KEY)'}\n`);
+console.log(`mode: ${live ? 'LIVE OpenRouter' : 'OFFLINE fake experts (no OPENROUTER_API_KEY)'}`);
+for (const p of peers) console.log(`  ${p.role.padEnd(10)} → ${live ? p.model : 'fake-stream'}`);
+console.log('');
 
 const folded: AgentFrame[] = [];
 const byAgent = new Map<string, string>();

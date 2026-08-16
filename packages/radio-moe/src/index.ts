@@ -58,6 +58,59 @@ export {
   type StreamingExpertOptions,
 } from './streaming-experts.js';
 
+// Deterministic claim/evidence mixture state (ADR-397).
+export {
+  MixtureState,
+  contributionBindingBytes,
+  signContributionInput,
+  type ClaimRelation,
+  type MixtureDimensions,
+  type ContributionInput,
+  type UnsignedContributionInput,
+  type MixtureCoefficients,
+  type MixtureConfig,
+  type MixtureContribution,
+  type ClaimMixture,
+  type Contradiction,
+  type MixtureSnapshot,
+  type MixtureUpdate,
+} from './mixture.js';
+
+// Independence-aware constitutional action release (ADR-397/396).
+export {
+  ActionGate,
+  signActionSupport,
+  actionIdentity,
+  supportsAreIndependent,
+  independentSupportSet,
+  type GovernedAction,
+  type UnsignedActionSupport,
+  type ActionSupport,
+  type AdmissibilityCallback,
+  type ActionGateOptions,
+  type ActionRejection,
+  type ActionDecision,
+} from './action-gate.js';
+
+// Signed output ordering, replay checkpoints, and fenced shadow takeover.
+export {
+  OUTPUT_PROTOCOL_VERSION,
+  OutputProtocolError,
+  DeterministicShadow,
+  initialStateHash,
+  outputEnvelopeHash,
+  signOutputEnvelope,
+  createTakeoverGrant,
+  type OutputKind,
+  type OutputRegime,
+  type MixtureCheckpoint,
+  type OutputEnvelope,
+  type UnsignedOutput,
+  type TakeoverGrant,
+  type UnsignedTakeoverGrant,
+  type ShadowOptions,
+} from './failover.js';
+
 // HTTP streaming providers (ADR-399): run the mesh against OpenRouter / Gemini.
 export {
   HttpStreamingExpert,

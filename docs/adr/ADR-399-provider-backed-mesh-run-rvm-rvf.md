@@ -109,3 +109,38 @@ stream as one signed mixture with a verified RVF trajectory. This is ADR-398's
 distributed-software-engineering wedge made executable: the harness's
 architect → implementer → reviewer → test-writer pod streams CONCURRENTLY into
 one governed trajectory instead of running as sequential phases. 30 tests.
+
+## Update 2 (2026-08-16): newest-model heterogeneous mesh + metaharness benchmarks
+
+**Heterogeneous 4-model live run** — `MESH_MODELS` now takes one model per peer;
+the four NEWEST frontier models on OpenRouter (grounded against the live
+catalog, created 2026-07/08) ran as one mixture:
+
+| Peer | Model (created) | 
+|---|---|
+| architect | `anthropic/claude-opus-5-fast` (07-24) |
+| security | `google/gemini-3.7-flash` (08-13) |
+| perf | `x-ai/grok-4.6` (08-12) |
+| kimi | `moonshotai/kimi-k3` (07-16) |
+
+Result: **114 signed frames folded in 14.46 s** (frontier latency dominates),
+4/4 distinct answers, 114/114 ed25519 signatures verified, RVF trajectory root
+re-derived. Notably all four experts independently converged on the same core
+claim — *reachability must never become permission* — an organic
+cross-model-consensus signal (and, per ADR-398's false-consensus warning, one
+that still needs evidence-independence weighting before it counts as quorum).
+
+**MetaHarness benchmarks** (read layer + Darwin Shield, seed 42):
+
+- `metaharness_score` on this repo: harnessFit **71**, compileConfidence
+  **100**, taskCoverage **79**, toolSafety **100**, memoryUsefulness **40**,
+  est **$0.048/run**, hard constraints **6/6**, archetype `rust-crate-harness`.
+- `metaharness_security_bench` (1 cycle, population 2 — a floor, not a tuned
+  run): overall **FAIL, honestly** — the Darwin champion tied the fixed-agent
+  baseline (fitness 0.598 = 0.598; no evolution headroom in one cycle). Real
+  signals that did pass: **compounding** (false-positive repeat-rate **−100%**,
+  patch-reuse **+100%** — ruVector memory makes the next run smarter), unsafe
+  outputs 0, cost 1×, all runs reproducible from receipts. Measured baseline
+  ceiling: static-only **TPR 0.3 / FPR 1.0** — static alone can't do this job.
+  A tuned run (more cycles/population) is the tracked follow-up; passing gates
+  at pop-2/1-cycle would have been suspicious, not impressive.

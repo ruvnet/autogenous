@@ -92,9 +92,12 @@ npm run mesh    # 3-peer mesh — offline fake experts, or LIVE with OPENROUTER_
 npm run bench   # sign/verify/fold/chain throughput
 ```
 
-**Live-verified** (2026-08-16, `openai/gpt-4o-mini`): 107 signed frames from 3
-concurrent expert streams folded in **1.77 s**; 107/107 signatures verified;
-trajectory root re-derived. **Bench** (N=1000): sign ~39k frames/s · verify
+**Live-verified** (2026-08-16): single-model — 107 signed frames from 3
+concurrent `gpt-4o-mini` streams in **1.77 s**, 107/107 verified. Heterogeneous —
+the four newest frontier models (`claude-opus-5-fast` · `gemini-3.7-flash` ·
+`grok-4.6` · `kimi-k3`) as one mixture: **114 signed frames in 14.5 s**, 114/114
+verified, trajectory root re-derived, with organic cross-model consensus.
+MetaHarness scorecard: harnessFit 71 · toolSafety 100 · $0.048/run. **Bench** (N=1000): sign ~39k frames/s · verify
 ~17k/s (≈0.06 ms/frame vs the <1 ms ADR-396 budget) · witness chain ~150k/s ·
 e2e fold ~23k frames/s. `npm audit --omit=dev`: 0 vulnerabilities.
 

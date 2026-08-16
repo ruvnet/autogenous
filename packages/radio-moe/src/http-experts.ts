@@ -195,11 +195,14 @@ export function geminiExpert(
   capability: CapabilityVector,
   opts: { model?: string; fetchImpl?: FetchLike } = {},
 ): HttpStreamingExpert {
-  const model = opts.model ?? 'gemini-1.5-flash';
+  const model = opts.model ?? 'gemini-3.7-flash';
   const project = process.env.GEMINI_PROJECT ?? '';
-  const location = process.env.GEMINI_LOCATION ?? 'us-central1';
+  // Newest Gemini models are served from the `global` location, whose host has
+  // no region prefix (verified live: 200 on global, 404 on us-central1).
+  const location = process.env.GEMINI_LOCATION ?? 'global';
+  const host = location === 'global' ? 'aiplatform.googleapis.com' : `${location}-aiplatform.googleapis.com`;
   const endpoint =
-    `https://${location}-aiplatform.googleapis.com/v1/projects/${project}` +
+    `https://${host}/v1/projects/${project}` +
     `/locations/${location}/publishers/google/models/${model}:streamGenerateContent?alt=sse`;
   return new HttpStreamingExpert({
     agentId,

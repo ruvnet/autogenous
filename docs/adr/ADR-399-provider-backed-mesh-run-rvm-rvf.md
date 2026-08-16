@@ -82,8 +82,8 @@ Offline mode (no key): same pipeline, 15 frames, ~21 ms, all verified.
   peer transport (ADR-395/396) carries them cross-machine next.
 - `@ruvector/rvf` native embedding is optional and probed at runtime; the
   hash-chain JSON container is the guaranteed path.
-- A live Gemini run needs `GEMINI_ACCESS_TOKEN`/`GEMINI_PROJECT`; the adapter
-  ships tested offline (wire-format parsers), OpenRouter is live-verified.
+- ~~A live Gemini run needs `GEMINI_ACCESS_TOKEN`/`GEMINI_PROJECT`~~ **Done
+  (Update 4)**: Gemini-on-GCP live-verified.
 
 ## Verification
 
@@ -171,3 +171,30 @@ favor of this canonical implementation. Tuned Darwin Shield security bench
 (0.6445 vs 0.598), statistically promoted (lower95 0.0165 > 0, p=0), evolved
 genome g2_v2_8 (sink-first + npm-audit); FPR reduction and seeded-vs-random
 remain open.
+
+## Update 4 (2026-08-16): Gemini-on-GCP live + signed TCP reference adapter
+
+**Gemini direct, live-verified**: `gemini-3.7-flash` via Vertex AI with IAM
+auth (`gcloud auth print-access-token`, project `cognitum-20260110`). Two
+findings folded into the adapter: the newest Gemini models serve from the
+**`global` location** whose host has no region prefix (probed live: 200 on
+global, 404 on us-central1) — the adapter now defaults to `global` and builds
+the host accordingly; default model bumped to `gemini-3.7-flash`. Run: 2 signed
+frames in 4.6 s, signatures + RVF trajectory verified.
+
+**Signed TCP peer transport** (`src/tcp-transport.ts`) — the ADR-395/396
+reference adapter, integrity-only (production = QUIC+mTLS): the full bound
+envelope (version · event_id · sender · recipient · request_id · route_epoch ·
+sender_sequence · issued_at · expires_at · kind · payload) signed over
+canonical bytes; receiver verification in the ADR-396 ORDER (shape/size →
+recipient → time → configured key → signature → replay id → monotonic
+sequence); bounded replay window (4096 event-ids) with per-(sender,request)
+sequence tuples; 4-byte length-prefixed framing with a hard 256 KiB bound that
+drops oversized connections; metadata-only rejections (reason + ids, never
+payload). Loopback conformance (5 tests over REAL TCP sockets): the ADR-396
+acceptance walk passes — one valid `request.open`, then the same envelope
+replayed, a one-byte-tampered copy, and a freshly-signed lower-sequence copy
+produce **exactly one invocation** and rejections `replayed-event` /
+`bad-signature` / `stale-sequence`; forged/unknown senders never invoke;
+expired + wrong-recipient reject; oversized refuses at the sender bound.
+67 package tests total.

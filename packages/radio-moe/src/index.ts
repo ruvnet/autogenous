@@ -134,3 +134,20 @@ export {
 
 // Deterministic relevance scoring for the mixture's r_i dimension (ADR-397).
 export { RelevanceScorer, tokenize, bagCosine } from './relevance.js';
+
+// Direct signed TCP peer transport (ADR-395/396 reference adapter — integrity
+// only; production requires QUIC+mTLS or equivalent).
+export {
+  TcpPeerNode,
+  sealEnvelope,
+  sendEnvelope,
+  verifyEnvelope,
+  ReplayGuard,
+  PROTOCOL_VERSION,
+  MAX_FRAME_BYTES,
+  type Envelope,
+  type EnvelopeKind,
+  type RejectReason,
+  type VerifyContext,
+  type TcpNodeOptions,
+} from './tcp-transport.js';

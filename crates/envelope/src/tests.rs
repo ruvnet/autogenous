@@ -3,10 +3,22 @@
 use super::*;
 use agl_types::{Applicability, Authority, Genome, HardGates, HardInvariant, MutationScope};
 use antibody::Detector;
-use constitution::Constitution;
+use constitution::{Constitution, RoleKeys};
 use witness::SigningAuthority;
 
 const NOW: u64 = 1_800_000_000;
+
+/// The fixed-seed judges/controller the tests sign with — pinned INTO the
+/// constitution (finding: the key policy is constitutionally governed).
+fn pinned_keys() -> RoleKeys {
+    let j1 = SigningAuthority::from_seed("judge-1", [1u8; 32]);
+    let j2 = SigningAuthority::from_seed("judge-2", [2u8; 32]);
+    let ctrl = SigningAuthority::from_seed("controller", [3u8; 32]);
+    RoleKeys {
+        judges: vec![j1.public_hex(), j2.public_hex()],
+        controllers: vec![ctrl.public_hex()],
+    }
+}
 
 fn constitution() -> Constitution {
     Constitution {
@@ -16,6 +28,7 @@ fn constitution() -> Constitution {
         prohibited_effects: vec!["pii_egress".into(), "config_write".into()],
         hard_gates: HardGates::default(),
         signers: vec!["a".into(), "b".into()],
+        pinned_keys: pinned_keys(),
         effective_at: 1_700_000_000,
     }
 }
@@ -60,14 +73,14 @@ fn mutation(parent_hash: &str, authority: Authority, rollback: Option<String>) -
     }
 }
 
-/// Sign a full receipt/envelope/pins closure around `manifest` — the boilerplate
-/// shared by the positive tests.
+/// Sign a full receipt/envelope closure around `manifest` — the boilerplate
+/// shared by the positive tests. Pins now come from the constitution, not here.
 fn sign_closure(
     c: &Constitution,
     p: &Genome,
     manifest: &CandidateManifest,
     candidate: &Detector,
-) -> (Vec<EvaluationReceipt>, PromotionEnvelope, RolePins) {
+) -> (Vec<EvaluationReceipt>, PromotionEnvelope) {
     let cp = corpus();
     let parent_detector = Detector::Contains {
         needle: "zzz-never-matches-anything".into(),
@@ -103,16 +116,11 @@ fn sign_closure(
     );
     let receipts = vec![r1, r2];
     let env = PromotionEnvelope::signed(&ctrl, &c.hash(), &cand_hash, &receipts, "nonce", NOW, 600);
-    let pins = RolePins {
-        judges: vec![j1.public_hex(), j2.public_hex()],
-        controllers: vec![ctrl.public_hex()],
-    };
-    (receipts, env, pins)
+    (receipts, env)
 }
 
 /// The capability-analysis artifact that genuinely establishes `tenant_isolation`
-/// for the clean candidate (examined the same AutoReversible / RetrievalRerank
-/// mutation against the parent's Governed ceiling).
+/// for the clean candidate.
 fn clean_artifact() -> ProofArtifact {
     ProofArtifact {
         invariant: "tenant_isolation".into(),
@@ -131,7 +139,6 @@ fn clean_case() -> (
     CandidateManifest,
     Vec<EvaluationReceipt>,
     PromotionEnvelope,
-    RolePins,
     Vec<ProofArtifact>,
 ) {
     let c = constitution();
@@ -151,23 +158,36 @@ fn clean_case() -> (
             reference: artifact.reference(),
         }],
     );
-    let (receipts, envelope, pins) = sign_closure(&c, &p, &manifest, &candidate);
-    (c, p, manifest, receipts, envelope, pins, vec![artifact])
+    let (receipts, envelope) = sign_closure(&c, &p, &manifest, &candidate);
+    (c, p, manifest, receipts, envelope, vec![artifact])
 }
 
 #[test]
 fn a_fully_closed_candidate_passes_with_zero_rejections() {
-    let (c, p, m, r, e, pins, arts) = clean_case();
-    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, &arts, NOW);
+    let (c, p, m, r, e, arts) = clean_case();
+    let rejects = verify_promotion(&c, &p, &m, &r, &e, &arts, NOW);
     assert!(rejects.is_empty(), "clean candidate rejected: {rejects:?}");
+}
+
+#[test]
+fn keys_not_pinned_in_the_constitution_are_rejected() {
+    // Fold-in check: strip the constitution's pinned keys and the same signed
+    // receipts/envelope are refused — the key policy lives in the constitution.
+    let (mut c, p, m, r, e, arts) = clean_case();
+    c.pinned_keys = RoleKeys::default();
+    let rejects = verify_promotion(&c, &p, &m, &r, &e, &arts, NOW);
+    assert!(rejects.contains(&Reject::ControllerNotPinned));
+    assert!(rejects
+        .iter()
+        .any(|x| matches!(x, Reject::TooFewJudges { .. })));
 }
 
 #[test]
 fn a_proof_reference_that_resolves_to_nothing_is_rejected() {
     // Finding #4: a reference alone is not enough — the referenced artifact must
     // be resolvable. Drop the artifact and the otherwise-clean candidate fails.
-    let (c, p, m, r, e, pins, _arts) = clean_case();
-    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, &[], NOW);
+    let (c, p, m, r, e, _arts) = clean_case();
+    let rejects = verify_promotion(&c, &p, &m, &r, &e, &[], NOW);
     assert!(
         rejects.contains(&Reject::ProofUnresolved("tenant_isolation".into())),
         "unresolvable proof must reject: {rejects:?}"
@@ -202,8 +222,8 @@ fn a_proof_artifact_that_does_not_establish_the_invariant_is_rejected() {
             reference: bad_artifact.reference(), // resolves, but won't establish
         }],
     );
-    let (r, e, pins) = sign_closure(&c, &p, &manifest, &candidate);
-    let rejects = verify_promotion(&c, &p, &manifest, &r, &e, &pins, &[bad_artifact], NOW);
+    let (r, e) = sign_closure(&c, &p, &manifest, &candidate);
+    let rejects = verify_promotion(&c, &p, &manifest, &r, &e, &[bad_artifact], NOW);
     assert!(
         rejects.contains(&Reject::ProofDoesNotEstablish("tenant_isolation".into())),
         "an artifact examining a different mutation must not establish: {rejects:?}"
@@ -212,10 +232,10 @@ fn a_proof_artifact_that_does_not_establish_the_invariant_is_rejected() {
 
 #[test]
 fn tampering_with_the_candidate_after_signing_is_caught() {
-    let (c, p, mut m, r, e, pins, arts) = clean_case();
+    let (c, p, mut m, r, e, arts) = clean_case();
     // swap the declared effects AFTER the receipts+envelope were signed
     m.declared_effects.push("pii_egress".into());
-    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, &arts, NOW);
+    let rejects = verify_promotion(&c, &p, &m, &r, &e, &arts, NOW);
     // candidate hash now differs from what the receipts/envelope bound to
     assert!(rejects.contains(&Reject::CandidateHashMismatch));
     assert!(rejects
@@ -225,7 +245,7 @@ fn tampering_with_the_candidate_after_signing_is_caught() {
 
 #[test]
 fn removing_a_judge_drops_below_quorum() {
-    let (c, p, m, mut r, _e, pins, arts) = clean_case();
+    let (c, p, m, mut r, _e, arts) = clean_case();
     r.truncate(1); // one judge only
                    // re-sign the envelope over the reduced receipt set so hashes still match
     let controller = SigningAuthority::from_seed("controller", [3u8; 32]);
@@ -238,7 +258,7 @@ fn removing_a_judge_drops_below_quorum() {
         NOW,
         600,
     );
-    let rejects = verify_promotion(&c, &p, &m, &r, &e, &pins, &arts, NOW);
+    let rejects = verify_promotion(&c, &p, &m, &r, &e, &arts, NOW);
     assert!(rejects
         .iter()
         .any(|x| matches!(x, Reject::TooFewJudges { .. })));
@@ -313,13 +333,11 @@ fn the_review_acceptance_test_maximally_malicious_candidate() {
         expires_at: NOW - 1,      // expired
         signature: String::new(), // UNSIGNED
     };
-    let pins = RolePins {
-        judges: vec![],
-        controllers: vec![],
-    };
 
     // No proof artifacts supplied — matching the self-asserted, unproven invariants.
-    let rejects = verify_promotion(&c, &p, &manifest, &receipts, &envelope, &pins, &[], NOW);
+    // Pins come from the constitution; the rogue judge + deadbeef controller are
+    // not among them.
+    let rejects = verify_promotion(&c, &p, &manifest, &receipts, &envelope, &[], NOW);
 
     // Distinct reasons — the review requires at least 6.
     use std::mem::discriminant;

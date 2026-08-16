@@ -259,14 +259,6 @@ impl PromotionEnvelope {
     }
 }
 
-/// Pinned per-role public keys (the constitution's key policy; folding these
-/// fields into `constitution::Constitution` is the tracked follow-up).
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct RolePins {
-    pub judges: Vec<String>,
-    pub controllers: Vec<String>,
-}
-
 /// Every independent reason a promotion is refused. `verify_promotion` returns
 /// all that apply, so a maximally-malicious candidate is rejected for many.
 #[derive(Clone, Debug, PartialEq)]
@@ -318,7 +310,6 @@ pub fn verify_promotion(
     manifest: &CandidateManifest,
     receipts: &[EvaluationReceipt],
     envelope: &PromotionEnvelope,
-    pins: &RolePins,
     proof_artifacts: &[ProofArtifact],
     now: u64,
 ) -> Vec<Reject> {
@@ -338,7 +329,10 @@ pub fn verify_promotion(
     if now >= envelope.expires_at {
         rej.push(Reject::EnvelopeExpired);
     }
-    if !pins.controllers.contains(&envelope.controller_pubkey) {
+    if !constitution
+        .pinned_controllers()
+        .contains(&envelope.controller_pubkey)
+    {
         rej.push(Reject::ControllerNotPinned);
     }
     if envelope.candidate_hash != cand_hash {
@@ -357,7 +351,7 @@ pub fn verify_promotion(
             rej.push(Reject::ReceiptBadSignature(r.judge_pubkey.clone()));
             continue;
         }
-        if !pins.judges.contains(&r.judge_pubkey) {
+        if !constitution.pinned_judges().contains(&r.judge_pubkey) {
             rej.push(Reject::JudgeNotPinned(r.judge_pubkey.clone()));
         }
         if r.candidate_hash != cand_hash {
@@ -384,7 +378,7 @@ pub fn verify_promotion(
     // count only receipts that are valid AND from pinned distinct judges
     let pinned_distinct: std::collections::BTreeSet<&String> = valid_receipts
         .iter()
-        .filter(|r| pins.judges.contains(&r.judge_pubkey))
+        .filter(|r| constitution.pinned_judges().contains(&r.judge_pubkey))
         .map(|r| &r.judge_pubkey)
         .collect();
     if pinned_distinct.len() < 2 {

@@ -87,8 +87,10 @@ does not establish the invariant). 70 tests; `cargo audit`, `fmt --check`, and
 ## Next (all 9 review findings closed)
 
 **Every finding in the security review is now Closed.** Remaining hardening is
-follow-up beyond the review's list: fold the pinned role keys into
-`Constitution` itself (they currently live in `RolePins`); raise the receipt
+follow-up beyond the review's list. **The pinned role keys are now folded
+into `constitution::Constitution`** (a `RoleKeys` field the verifier reads —
+`verify_promotion` no longer takes a side `RolePins`), so the key policy is
+constitutionally governed. Remaining: raise the receipt
 `MIN_SAMPLES` floor toward the review's 100k for production profiles; back
 `DeploymentAdapter` with a real router/orchestrator (the `InMemoryAdapter` is
 the deterministic reference — the trait is the seam a production surface

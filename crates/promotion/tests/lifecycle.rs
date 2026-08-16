@@ -18,6 +18,7 @@ fn constitution_doc() -> Constitution {
         prohibited_effects: vec!["pii_egress".into(), "filesystem_write".into()],
         hard_gates: HardGates::default(),
         signers: vec!["release-a".into(), "release-b".into()],
+        pinned_keys: constitution::RoleKeys::default(),
         effective_at: 1_700_000_000,
     }
 }

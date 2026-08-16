@@ -16,6 +16,20 @@ use agl_types::{Authority, HardGates};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+/// The pinned per-role public keys the promotion path trusts. Folding these into
+/// the constitution (rather than a side struct handed to the verifier) makes the
+/// key policy **constitutionally governed**: the set of keys that may sign an
+/// evaluation receipt or a promotion is part of the content-addressed, externally
+/// governed document, so changing it is a [`ConstitutionChange`] (≥2 signers +
+/// migration path), not an argument a caller can vary at verify time.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoleKeys {
+    /// ed25519 public keys (hex) authorized to sign evaluation receipts.
+    pub judges: Vec<String>,
+    /// ed25519 public keys (hex) authorized to sign promotion envelopes.
+    pub controllers: Vec<String>,
+}
+
 /// The constitutional document. All fields are set at authoring time and never
 /// mutated in place — the runtime holds it behind an immutable reference and
 /// trusts only its content hash.
@@ -31,6 +45,9 @@ pub struct Constitution {
     pub hard_gates: HardGates,
     /// Identities whose signatures constitutional changes require (≥2 must sign).
     pub signers: Vec<String>,
+    /// Pinned per-role signing keys the promotion path trusts (see [`RoleKeys`]).
+    #[serde(default)]
+    pub pinned_keys: RoleKeys,
     /// Unix seconds this document became effective.
     pub effective_at: u64,
 }
@@ -47,6 +64,16 @@ impl Constitution {
     /// Is `effect` constitutionally prohibited?
     pub fn prohibits(&self, effect: &str) -> bool {
         self.prohibited_effects.iter().any(|e| e == effect)
+    }
+
+    /// ed25519 public keys (hex) constitutionally authorized to sign receipts.
+    pub fn pinned_judges(&self) -> &[String] {
+        &self.pinned_keys.judges
+    }
+
+    /// ed25519 public keys (hex) constitutionally authorized to sign promotions.
+    pub fn pinned_controllers(&self) -> &[String] {
+        &self.pinned_keys.controllers
     }
 }
 
@@ -120,6 +147,7 @@ mod tests {
             prohibited_effects: vec!["filesystem_write".into(), "pii_egress".into()],
             hard_gates: HardGates::default(),
             signers: vec!["alice".into(), "bob".into(), "carol".into()],
+            pinned_keys: RoleKeys::default(),
             effective_at: 1_700_000_000,
         }
     }

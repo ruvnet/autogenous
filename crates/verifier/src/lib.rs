@@ -130,6 +130,7 @@ mod tests {
             prohibited_effects: vec!["pii_egress".into()],
             hard_gates: HardGates::default(),
             signers: vec!["a".into(), "b".into()],
+            pinned_keys: constitution::RoleKeys::default(),
             effective_at: 0,
         }
     }

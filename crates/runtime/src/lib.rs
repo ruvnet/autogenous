@@ -18,7 +18,7 @@ use deployment::verified_rollback;
 pub use deployment::{DeploymentAdapter, Health, InMemoryAdapter, RollbackReceipt};
 use envelope::{
     evaluate_and_sign, verify_promotion, CandidateManifest, EvaluationReceipt, InvariantProof,
-    PromotionEnvelope, ProofArtifact, RolePins,
+    PromotionEnvelope, ProofArtifact,
 };
 use evaluator::Corpus;
 use generator::{propose, AttackEvidence, GeneratorConfig};
@@ -141,7 +141,6 @@ pub struct Runtime {
     pub judge_b: SigningAuthority,
     pub controller: SigningAuthority,
     pub corpus: Corpus,
-    pub pins: RolePins,
     pub lineage: LineageGraph,
     pub gates: HardGates,
     pub cfg: GeneratorConfig,
@@ -160,10 +159,6 @@ impl Runtime {
         corpus: Corpus,
     ) -> Self {
         let gates = constitution.hard_gates;
-        let pins = RolePins {
-            judges: vec![judge_a.public_hex(), judge_b.public_hex()],
-            controllers: vec![controller.public_hex()],
-        };
         Runtime {
             constitution,
             parent,
@@ -173,7 +168,6 @@ impl Runtime {
             judge_b,
             controller,
             corpus,
-            pins,
             lineage: LineageGraph::new(),
             gates,
             cfg: GeneratorConfig::default(),
@@ -284,7 +278,6 @@ impl Runtime {
                 &manifest,
                 &receipts,
                 &env,
-                &self.pins,
                 &proof_artifacts,
                 now,
             );

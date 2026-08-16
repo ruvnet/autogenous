@@ -5,13 +5,25 @@
 
 use agl_types::{Authority, FitnessVector, Genome, HardGates, HardInvariant};
 use antibody::Detector;
-use constitution::Constitution;
+use constitution::{Constitution, RoleKeys};
 use evaluator::Corpus;
 use generator::AttackEvidence;
 use runtime::{DeploymentAdapter, Health, InMemoryAdapter, Runtime, Slos, TestClock};
 use witness::SigningAuthority;
 
 const NOW: u64 = 1_800_000_000;
+
+/// The runtime's judges + controller, pinned INTO the constitution (the key
+/// policy is constitutionally governed — same seeds as `runtime()` below).
+fn pinned_keys() -> RoleKeys {
+    let judge_a = SigningAuthority::from_seed("judge-a", [12u8; 32]);
+    let judge_b = SigningAuthority::from_seed("judge-b", [13u8; 32]);
+    let controller = SigningAuthority::from_seed("promotion-controller", [14u8; 32]);
+    RoleKeys {
+        judges: vec![judge_a.public_hex(), judge_b.public_hex()],
+        controllers: vec![controller.public_hex()],
+    }
+}
 
 fn constitution() -> Constitution {
     Constitution {
@@ -21,6 +33,7 @@ fn constitution() -> Constitution {
         prohibited_effects: vec!["pii_egress".into(), "config_write".into()],
         hard_gates: HardGates::default(),
         signers: vec!["release-a".into(), "release-b".into()],
+        pinned_keys: pinned_keys(),
         effective_at: 1_700_000_000,
     }
 }

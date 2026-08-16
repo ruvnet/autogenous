@@ -72,6 +72,7 @@ and the **[API / SDK Reference](docs/API.md)** (every public export, grouped by 
 | **Spatial & cross-org (ADR-402 / cap 6)** | `admitObservation`/`confidenceTier`, `discloseFinding`/`verifyDisclosure` | Fail-closed RuField observation admission (no fact without calibration/expiry); sovereign-peer signed disclosure carrying only permitted evidence refs, never raw data. |
 | **Real backends** | `openRouterExpert`, `geminiExpert`, `CommandStreamingExpert` (`claude`/`codex`), `harnessPodExperts` | Run the mesh against OpenRouter / Gemini / local `claude -p` / `codex exec` / create-agent-harness pods. |
 | **Governed evolution (ADR-400/401)** | `evolveMesh`, `promotable`, `promoteAuthorized`, `verifyLedger`, `CEILINGS` | Flywheel over the *evolvable* params only, inside frozen ceilings, ed25519-signed receipts; promotion gated by the one predicate `Better ∧ Safe ∧ Authorized ∧ Reversible`. |
+| **Reputation market (ADR-401 cap 9)** | `signCapabilityClaim`, `mintPerformanceRecord`, `reputation`, `selectionWeight` | Peers advertise capabilities and earn reputation only from externally-verified contribution (tied to `admitDurableWrite`); the `w=q·t·r/(c·l)` selection weight is a labeled *unvalidated* hypothesis. |
 
 ## Architecture
 

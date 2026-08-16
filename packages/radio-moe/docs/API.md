@@ -216,6 +216,24 @@ Design: [ADR-402](../../../docs/adr/ADR-402-ruview-cognitum-spaces-spatial-intel
 
 ---
 
+## 10. Reputation market (ADR-401 cap 9)
+
+```ts
+import { signCapabilityClaim, mintPerformanceRecord, reputation, selectionWeight } from 'radio-moe';
+```
+
+| Export | Kind | Summary |
+|---|---|---|
+| `signCapabilityClaim(peer, claim)`, `verifyCapabilityClaim`, `CapabilityClaim`, `UnsignedCapabilityClaim` | fn/type | A peer advertises a capability + self-reported quality (signed, verifiable). |
+| `mintPerformanceRecord(peer, outcomeHash, quality, verdicts, policy, now)` | fn | Mints a record **only** if `admitDurableWrite` admits the outcome (external verification) and the peer is a contributor; else `null`. The record carries the affirming verdicts as proof. |
+| `verifyPerformanceRecord(record, agentKey, policy)`, `PerformanceRecord`, `UnsignedPerformanceRecord` | fn/type | Valid iff the signature holds AND the carried verdicts still externally-verify the outcome — a self-reported/forged record fails. |
+| `reputation(agentId, records, agentKey, policy)`, `Reputation` | fn/type | Aggregates only verified records → `{ verifiedContributions, meanQuality }`. Reputation is earned from proven contribution, not brand. |
+| `selectionWeight({quality, trust, relevance, cost, latency})`, `SelectionInputs` | fn/type | `w = (q·t·r)/(c·l)` — **UNVALIDATED hypothesis** (zero literature backing per research); exported to be measured, not as a proven mechanism. |
+
+Design: [ADR-401 cap 9](../../../docs/adr/ADR-401-perpetual-intelligence-machine.md).
+
+---
+
 ## Errors you will meet
 
 | Error | When |

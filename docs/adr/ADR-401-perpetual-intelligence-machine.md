@@ -1,7 +1,7 @@
 # ADR-401 — The Perpetual Intelligence Machine (capability synthesis + acceptance test)
 
 - Status: Accepted (framing + capability map) · Partial (implementation)
-- Date: 2026-08-16 · Updated: 2026-08-16 (Update 1 — new-angles research landed; two overclaims corrected)
+- Date: 2026-08-16 · Updated: 2026-08-16 (Update 1 — new-angles research landed, two overclaims corrected; V1 milestone #2 built & passing — fusion beats best-single, lineage-weighted fusion defeats correlated false consensus)
 - Related: ADR-395 (radio mesh), ADR-396 (peer-expert protocol + governed evolution), ADR-397 (streaming mixture of agents), ADR-398 (dev-loop integration), ADR-399 (provider-backed runs, RVM/RVF, real midstream), ADR-400 (self-evolving flywheel), metaharness ADR-322 (flywheel receipts/promotion)
 - Supersedes nothing; this ADR is the **product-level synthesis** over the ADR-395…400 substrate.
 
@@ -97,9 +97,19 @@ Status legend: **Built** (in `packages/radio-moe/src`, tested) · **Partial**
 1. **Uninterrupted recovery after peer loss** — `failover.ts` fenced-takeover
    path; `test/failover.test.ts` already proves exact-checkpoint continuation
    and exclusion of the old mixer. *Bench gap: quantify to the 30%/<5s target.*
-2. **Better decisions than the strongest individual agent** — **the real gap.**
-   Needs a bench comparing the fused mixture against the best single expert on a
-   fixed corpus. **Loop item.**
+2. **Better decisions than the strongest individual agent** — **BUILT & PASSING**
+   (`examples/bench-fusion.ts` + `test/fusion-bench.test.ts`, deterministic
+   corpus `examples/fusion-corpus.ts`). On independent-error tasks the fused
+   mixture scores **100% vs 66.7% best-single (+33.3%)**. The bench also
+   established a sharper, honest result on *correlated*-error tasks: naive-vote
+   AND the mixture's `selectIndependent` source-dedup are both dragged *below*
+   best-single (66.7% < 75%) by a confidently-wrong same-lineage cluster —
+   source-dedup is necessary but **not sufficient** — while **lineage-weighted
+   fusion (`effectiveSupport`) recovers to 100%** (+25% vs best, +33.3% vs
+   naive). Empirical proof of Decision 2 / capability 3: *independence must be
+   measured by lineage, not just shared sourceIds.* Produced by the mesh itself
+   (codex implementer expert wrote the corpus; the mixer wrote the fusion
+   harness).
 3. **Measurable learning from outcomes** — flywheel promotion ledger
    (`mesh-evolve.ts`); measured +81.8% separation then honest plateau (ADR-400).
    Ties into the already-queued bench-widening.

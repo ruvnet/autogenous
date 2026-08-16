@@ -154,7 +154,7 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
 |---|---|---|
 | ≥95% calibrated presence accuracy | RuView calibration + RuField typed obs | **External (RuView) — bench gap** |
 | Peer-failure detection <5s | `bench-failover.ts` (shared with ADR-401) | Protocol recovery **measured** (p50 0.34 ms at 30% loss, ≈8000× under budget); sensor/network detection latency is the external part |
-| 50% false-alert reduction via fusion | `mixture.ts` + `lineage-independence.ts` fusion vs single-sensor baseline | **Bench gap** |
+| 50% false-alert reduction via fusion | `bench-false-alert.ts` + `test/false-alert.test.ts` (corroboration fusion vs no-fusion any-sensor baseline) | **Built & measured** — 58.3% reduction (60%→25%), detection retained 100% |
 | Raw sensing data stays local | sovereign-peer boundary (ADR-401 cap 6) | **Gap (design-only)** |
 | Complete receipt per external action | `action-gate.ts` + `rvf-trajectory.ts` | Built (action side); wire perception provenance in |
 
@@ -175,8 +175,9 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
    an authorized action still requires independent corroboration at the
    `ActionGate` (graded quorum). Proven by `test/observation.test.ts` (6 tests).
 3. **Remaining ADR-402 loop items** (this ADR is otherwise a specification): the
-   timed failover bench (**done**, shared with ADR-401), the fusion-vs-single-
-   sensor false-alert bench, and the sovereign-peer local-data boundary.
+   timed failover bench (**done**, shared with ADR-401), the fusion false-alert
+   bench (**done** — `bench-false-alert.ts`), and the sovereign-peer local-data
+   boundary (the one still open, part of ADR-401 cap 6).
 
 ## Consequences
 

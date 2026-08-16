@@ -35,7 +35,8 @@
     "bench:failover": "node --import tsx examples/bench-failover.ts",
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf dist",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "bench:false-alert": "node --import tsx examples/bench-false-alert.ts"
   },
   "dependencies": {
     "@metaharness/radio": "^0.1.0"

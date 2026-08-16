@@ -65,7 +65,7 @@ The first executable profile is the **Autogenous Antibody Package (AAP)**: a sig
 P7 (invented representations / semantic airlock) is ongoing research by definition — it has a specified contract (ADR-392 §7), not fake results.
 
 ```bash
-cargo test   # 66 tests, including the end-to-end acceptance lifecycle
+cargo test   # 71 tests, including the end-to-end acceptance lifecycle
 ```
 
 **Measured** (release, Ryzen host, `cargo run --release -p midstream-adapter --example perf`):
@@ -87,7 +87,7 @@ roles stream concurrently as one signed mixture.
 
 ```bash
 cd packages/radio-moe
-npm test        # 27 offline deterministic tests (incl. adversarial E2E)
+npm test        # 30 offline deterministic tests (incl. adversarial E2E)
 npm run mesh    # 3-peer mesh — offline fake experts, or LIVE with OPENROUTER_API_KEY
 npm run bench   # sign/verify/fold/chain throughput
 ```

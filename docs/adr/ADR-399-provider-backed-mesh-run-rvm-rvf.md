@@ -198,3 +198,21 @@ produce **exactly one invocation** and rejections `replayed-event` /
 `bad-signature` / `stale-sequence`; forged/unknown senders never invoke;
 expired + wrong-recipient reject; oversized refuses at the sender bound.
 67 package tests total.
+
+## Update 5 (2026-08-16): cross-process mesh over the signed TCP transport
+
+`examples/mesh-tcp.ts` runs the mesh as SEPARATE OS processes over real TCP
+sockets (the honest local stand-in for tailnet machines; key exchange via JSON
+descriptors in a shared dir — the ADR-396 out-of-band channel). The origin
+dispatches `request.open`; each expert peer streams `stream.delta` envelopes
+whose payloads are ed25519-signed AgentFrames; the origin verifies **both
+layers** (envelope: shape→recipient→time→key→signature→replay→sequence; then
+the inner frame against the same peer's key), folds, scores relevance, and
+packages the RVF trajectory.
+
+Measured (offline experts, 3 processes): **10 verified frames from 2/2 peers in
+53 ms, 0 bad frames**; relevance differentiated (0.333 vs 0.083 — echo damped);
+trajectory root verified. This meets ADR-395's acceptance criterion #1 ("two
+direct peers stream a text response end to end") on the reference adapter.
+Next: the same run across actual tailnet machines (ruvultra ↔ zenbook) and TCP
+as an alternative `DataTransport` in the in-process mesh route path.

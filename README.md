@@ -80,7 +80,10 @@ agents**. AgentRadio (`@metaharness/radio`) is the metadata-only local control
 plane; an **ed25519-signed** transport carries typed `AgentFrame`s; experts run
 on real backends — `claude -p` / `codex exec` subprocess streaming, **OpenRouter**
 and **Gemini-on-GCP** SSE adapters. Every run is packaged as an **RVF-style
-witness trajectory** (hash-chained, tamper-evident).
+witness trajectory** (hash-chained, tamper-evident). A `create-agent-harness`
+pod (e.g. [`kimi-k3-harness`](https://github.com/ruvnet/metaharness/tree/main/kimi-k3-harness))
+loads directly as mesh experts — its architect/implementer/reviewer/test-writer
+roles stream concurrently as one signed mixture.
 
 ```bash
 cd packages/radio-moe

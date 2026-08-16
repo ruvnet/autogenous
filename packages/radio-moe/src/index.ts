@@ -68,3 +68,13 @@ export {
   type HttpExpertConfig,
   type FetchLike,
 } from './http-experts.js';
+
+// Harness-pod integration: run a create-agent-harness pod (e.g. kimi-k3-harness)
+// as streaming mesh experts.
+export {
+  parseAgentModule,
+  loadHarnessAgents,
+  harnessPodExperts,
+  roleCapability,
+  type HarnessAgentDef,
+} from './harness-experts.js';

@@ -1,7 +1,7 @@
 # ADR-399 — Provider-backed mesh run: OpenRouter/Gemini experts, RVF trajectories, RVM capability model
 
 - Status: Accepted — Implemented (level-1 claim mixture, live-verified)
-- Date: 2026-08-16
+- Date: 2026-08-16 · Updated: 2026-08-16 — harness-pod integration added (see below)
 - Decision owners: Autogenous maintainers
 - Related: ADR-395 (peer expert mesh), ADR-396 (protocol security), ADR-397 (streaming mixture of agents), ADR-398 (applications)
 
@@ -93,3 +93,19 @@ rejection, trajectory chain round-trip + tamper detection, credentials signal)
 `swarm-1786892527470-clhav8` (hierarchical/specialized); the RVF module was
 implemented by a `codex exec` worker against a bounded two-file spec, then
 reviewed, typechecked, and tested before integration.
+
+## Update (2026-08-16): harness-pod integration (`src/harness-experts.ts`)
+
+A `create-agent-harness` pod — grounded against
+`ruvnet/metaharness/kimi-k3-harness` (each `src/agents/*.ts` exports
+`SYSTEM_PROMPT`/`NAME`/`TIER`; `.harness/manifest.json` lists them) — now runs
+**as mesh experts**: `loadHarnessAgents` statically parses the generated agent
+modules, `harnessPodExperts` instantiates one signed streaming expert per role
+(default backend `claude -p --append-system-prompt <role prompt>`; injectable
+spawn for offline tests), with tier-scaled capability vectors (opus > sonnet >
+haiku). Verified against the real kimi-k3-harness checkout: all four roles
+(architect/opus, implementer/sonnet, reviewer/opus, test-writer/sonnet) load and
+stream as one signed mixture with a verified RVF trajectory. This is ADR-398's
+distributed-software-engineering wedge made executable: the harness's
+architect → implementer → reviewer → test-writer pod streams CONCURRENTLY into
+one governed trajectory instead of running as sequential phases. 30 tests.

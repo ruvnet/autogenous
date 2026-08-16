@@ -2,3 +2,8 @@
 **/target
 node_modules
 *.tgz
+
+# Generated runtime state (not source)
+.claude-flow/
+**/.harness/
+**/agentdb.rvf*

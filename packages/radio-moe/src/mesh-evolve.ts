@@ -122,7 +122,9 @@ const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.m
 /** Bounded mutation: jitter one or two knobs, clamped to the ceilings. */
 export function mutate(parent: EvolvableParams, rnd: () => number): EvolvableParams {
   const w = { ...parent.weights };
-  const keys: (keyof IndependenceWeights)[] = ['sameProvider', 'sameArch', 'sameSize', 'sourceJaccard'];
+  // Only the four REQUIRED weight knobs mutate; sameAccuracyBand stays at its
+  // configured value until the accuracy-band axis gets its own evolution bench.
+  const keys = ['sameProvider', 'sameArch', 'sameSize', 'sourceJaccard'] as const;
   const k = keys[Math.floor(rnd() * keys.length)]!;
   w[k] = clamp(w[k] + (rnd() - 0.5) * 0.2, CEILINGS.weightMin, CEILINGS.weightMax);
   const quorumThreshold =

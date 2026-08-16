@@ -98,10 +98,8 @@ async function runExpert(): Promise<void> {
     const { prompt = '', streamNonce } = e.payload as { prompt?: string; streamNonce?: string };
     console.log(`[${name}] request.open accepted from ${e.senderPeer}`);
     const live = Boolean(process.env.OPENROUTER_API_KEY);
-    // NOTE: the HTTP expert path does not yet thread streamNonce; the local
-    // (fake/live-CLI) path stamps it. Offline demo exercises the full gate.
     const expert = live
-      ? openRouterExpert(name, identity, [1], { model: process.env.MESH_MODEL ?? 'openai/gpt-4o-mini' })
+      ? openRouterExpert(name, identity, [1], { model: process.env.MESH_MODEL ?? 'openai/gpt-4o-mini', ...(streamNonce !== undefined ? { streamNonce } : {}) })
       : new CommandStreamingExpert(name, identity, [1], {
           command: process.execPath,
           args: ['-e', `for (const w of ${JSON.stringify([`${name}:`, ' separate', ' routing', ' from', ' authority.'])}) console.log(JSON.stringify({delta:w}));`],

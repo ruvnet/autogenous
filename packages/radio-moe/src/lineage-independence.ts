@@ -6,10 +6,13 @@
 //! llama-3.1-70b agree 0.97 when both wrong) — so binary distinct-modelId
 //! independence over-counts.
 //!
-//! ⚠ TUNABLE, NEVER FROZEN: the research pass left UNVERIFIED whether more-
-//! accurate models correlate even across providers/architectures (all 3
-//! verifier votes errored). Until that is independently checked, these weights
-//! are configuration, not constants — see docs/research/2026-08-16-…sota.md.
+//! ⚠ TUNABLE, NEVER FROZEN — and now with a CONFIRMED second axis: the
+//! previously-unverified claim was checked against the primary source
+//! (arXiv:2506.07962 abstract, verbatim): "larger and more accurate models
+//! have highly correlated errors, even with distinct architectures and
+//! providers." Consequence: provider/arch diversity OVERESTIMATES independence
+//! among frontier models, so `accuracyBand` adds a same-band penalty — two
+//! top-band models are partially correlated regardless of lineage.
 
 import { createHash, verify as edVerify } from 'node:crypto';
 import { canonicalBytes, type AgentFrame } from './agent-frame.js';
@@ -20,6 +23,10 @@ export interface ModelLineage {
   arch: string;
   sizeClass: 'S' | 'M' | 'L' | 'XL';
   modelId: string;
+  /** Coarse accuracy band (e.g. benchmark-tier). CONFIRMED (arXiv:2506.07962):
+   *  high-accuracy models correlate even across providers — same band is a
+   *  correlation signal independent of lineage. Optional for back-compat. */
+  accuracyBand?: 'frontier' | 'strong' | 'baseline';
 }
 
 export interface LineageSupport {
@@ -35,6 +42,8 @@ export interface IndependenceWeights {
   sameArch: number;
   sameSize: number;
   sourceJaccard: number;
+  /** Same accuracy band penalty (arXiv:2506.07962-confirmed axis). */
+  sameAccuracyBand?: number;
 }
 
 export const DEFAULT_INDEPENDENCE_WEIGHTS: IndependenceWeights = {
@@ -42,6 +51,7 @@ export const DEFAULT_INDEPENDENCE_WEIGHTS: IndependenceWeights = {
   sameArch: 0.35,
   sameSize: 0.1,
   sourceJaccard: 0.15,
+  sameAccuracyBand: 0.2,
 };
 
 export function jaccard(a: readonly string[], b: readonly string[]): number {
@@ -65,6 +75,12 @@ export function pairIndependence(
   if (a.lineage.provider === b.lineage.provider) s -= w.sameProvider;
   if (a.lineage.arch === b.lineage.arch) s -= w.sameArch;
   if (a.lineage.sizeClass === b.lineage.sizeClass) s -= w.sameSize;
+  if (
+    a.lineage.accuracyBand !== undefined &&
+    a.lineage.accuracyBand === b.lineage.accuracyBand
+  ) {
+    s -= w.sameAccuracyBand ?? 0;
+  }
   s -= w.sourceJaccard * jaccard(a.sourceIds, b.sourceIds);
   return Math.max(0, s);
 }

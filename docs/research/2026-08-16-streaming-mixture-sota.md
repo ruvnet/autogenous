@@ -76,13 +76,29 @@ in-frame replay binding).
   added *optional* JWS card signatures; weaker than mandatory provenance, not zero).
 - "~2,000 unauthenticated MCP servers" (Knostic figure) (1-2).
 
-## Unverified (infrastructure errors — check before freezing quorum weights)
+## ~~Unverified~~ → RESOLVED (2026-08-16, primary-source check)
 
-- More-accurate models have MORE correlated errors *even after conditioning on
-  provider/architecture/size* (arXiv:2506.07962). If true, naive
-  provider/architecture diversity weighting **overestimates independence among
-  frontier models**. All 3 verifier votes errored (session limit) — must be
-  independently checked before the quorum weighting design is frozen.
+- **CONFIRMED** — arXiv:2506.07962 abstract, verbatim: *"larger and more
+  accurate models have highly correlated errors, even with distinct
+  architectures and providers."* Naive provider/architecture diversity
+  weighting therefore **overestimates independence among frontier models**.
+  Folded into code: `ModelLineage.accuracyBand` ('frontier'|'strong'|'baseline')
+  with a `sameAccuracyBand` penalty (default 0.2, tunable) in
+  `lineage-independence.ts` — two frontier-band models are partially correlated
+  regardless of lineage. The band axis is excluded from flywheel mutation until
+  it gets its own bench.
+
+## Angle-4 addendum (2026-08-16, targeted check)
+
+- **FusionRoute** (arXiv:2601.05106, primary): token/logit-level fusion — a
+  lightweight router selects the expert per decoding step AND contributes a
+  complementary logit; beats sequence- and token-level collaboration, merging,
+  and fine-tuning across Llama-3/Gemma-2 families. **No shared-tokenizer
+  discussion, no signed provenance, no quorum, no governance** — i.e. strong
+  intra-family token fusion exists (maps to our ADR-395 `logit_mix` profile,
+  which already enforces exact tokenizer match), and the governed/signed/quorum
+  combination remains unoccupied. The angle-4 caveat on the novelty verdict is
+  hereby narrowed, not removed: cross-family token fusion remains under-surveyed.
 
 ## Open questions
 

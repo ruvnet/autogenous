@@ -28,6 +28,9 @@ export interface HttpExpertConfig {
   agentId: string;
   identity: PeerIdentity;
   capability: CapabilityVector;
+  /** In-frame replay binding: receiver-issued per-stream nonce echoed inside
+   *  every signed frame (parity with CommandStreamingExpert). */
+  streamNonce?: string;
   endpoint: string;
   /** Resolved at call time so a rotated key/token is picked up per request. */
   headers: () => Record<string, string>;
@@ -92,7 +95,7 @@ export class HttpStreamingExpert {
             continue;
           }
           for (const p of this.cfg.parser(event)) {
-            yield sign(this.cfg.identity, this.cfg.agentId, requestId, step++, p);
+            yield sign(this.cfg.identity, this.cfg.agentId, requestId, step++, p, this.cfg.streamNonce);
           }
         }
       }
@@ -108,6 +111,7 @@ function sign(
   requestId: string,
   step: number,
   p: PartialFrame,
+  streamNonce?: string,
 ): AgentFrame {
   return signFrame(identity, {
     requestId,
@@ -121,6 +125,7 @@ function sign(
     capabilityUsed: p.capabilityUsed ?? agentId,
     evidenceHashes: p.evidenceHashes ?? [],
     cost: p.cost ?? 0,
+    ...(streamNonce !== undefined ? { streamNonce } : {}),
   });
 }
 
@@ -166,7 +171,7 @@ export function openRouterExpert(
   agentId: string,
   identity: PeerIdentity,
   capability: CapabilityVector,
-  opts: { model: string; apiKeyEnv?: string; fetchImpl?: FetchLike } = { model: 'openai/gpt-4o-mini' },
+  opts: { model: string; apiKeyEnv?: string; fetchImpl?: FetchLike; streamNonce?: string } = { model: 'openai/gpt-4o-mini' },
 ): HttpStreamingExpert {
   const keyEnv = opts.apiKeyEnv ?? 'OPENROUTER_API_KEY';
   return new HttpStreamingExpert({
@@ -183,6 +188,7 @@ export function openRouterExpert(
     parser: openaiSseParser,
     hasCredentials: () => Boolean(process.env[keyEnv]),
     ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
+    ...(opts.streamNonce !== undefined ? { streamNonce: opts.streamNonce } : {}),
   });
 }
 
@@ -193,7 +199,7 @@ export function geminiExpert(
   agentId: string,
   identity: PeerIdentity,
   capability: CapabilityVector,
-  opts: { model?: string; fetchImpl?: FetchLike } = {},
+  opts: { model?: string; fetchImpl?: FetchLike; streamNonce?: string } = {},
 ): HttpStreamingExpert {
   const model = opts.model ?? 'gemini-3.7-flash';
   const project = process.env.GEMINI_PROJECT ?? '';
@@ -214,5 +220,6 @@ export function geminiExpert(
     parser: geminiSseParser,
     hasCredentials: () => Boolean(process.env.GEMINI_ACCESS_TOKEN && process.env.GEMINI_PROJECT),
     ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
+    ...(opts.streamNonce !== undefined ? { streamNonce: opts.streamNonce } : {}),
   });
 }

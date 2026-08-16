@@ -101,6 +101,12 @@ test('pairIndependence grades lineage overlap; effectiveSupport resists same-fam
   // Shared evidence reduces independence (jaccard term).
   const sharedEv = pairIndependence(S('a', L('meta', 'llama', 'XL', 'm1'), ['ev1']), S('b', L('google', 'gemini', 'L', 'm2'), ['ev1']));
   assert.ok(sharedEv < crossProvider);
+  // CONFIRMED axis (arXiv:2506.07962): two FRONTIER models correlate even
+  // across providers — same accuracy band reduces independence.
+  const fA = S('a', { ...L('meta', 'llama', 'XL', 'x1'), accuracyBand: 'frontier' as const });
+  const fB = S('b', { ...L('google', 'gemini', 'L', 'x2'), accuracyBand: 'frontier' as const });
+  const mixed = S('c', { ...L('google', 'gemini', 'L', 'x3'), accuracyBand: 'baseline' as const });
+  assert.ok(pairIndependence(fA, fB) < pairIndependence(fA, mixed), 'same frontier band penalized');
 });
 
 test('CompletionCert: k-of-n counter-signing with clique resistance', () => {

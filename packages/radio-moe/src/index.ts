@@ -193,6 +193,22 @@ export {
   type TierThresholds,
 } from './observation.js';
 
+// Sovereign-peer disclosure boundary (ADR-401 cap 6): cooperate without pooling
+// raw data — disclose signed findings + confidence + permitted evidence refs
+// (digests) only, stripping raw payloads and above-ceiling evidence. Fail-closed.
+export {
+  discloseFinding,
+  verifyDisclosure,
+  assertWithinCeiling,
+  evidenceDigest,
+  type EvidenceItem,
+  type InternalFinding,
+  type DisclosurePolicy,
+  type DisclosedEvidenceRef,
+  type UnsignedDisclosure,
+  type Disclosure,
+} from './disclosure.js';
+
 // Direct signed TCP peer transport (ADR-395/396 reference adapter — integrity
 // only; production requires QUIC+mTLS or equivalent).
 export {

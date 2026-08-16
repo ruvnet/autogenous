@@ -13,6 +13,8 @@
 
 **[▶ The story](https://ruvnet.github.io/autogenous/)** · **[ADRs](./docs/adr)** · **Formal system:** Autogenous Runtime · **Protocol:** AGL · **Adaptation:** AAP
 
+[![Live streaming mixture of agents — 107 signed frames over OpenRouter, RVF trajectory verified](./docs/assets/mesh-run.svg)](https://ruvnet.github.io/autogenous/)
+
 </div>
 
 ---
@@ -70,6 +72,28 @@ cargo test   # 66 tests, including the end-to-end acceptance lifecycle
 stream observation ≈ **0.9 µs/chunk** with 1 armed antibody (≈ 14 µs with 16) — ~350× inside the <5 ms p99 SLO; replay of **100,000 labeled streams in ~7 ms**; canary decision ≈ 2 ns. Detectors are **serializable artifacts** (a closed combinator algebra with enforced resource bounds — no closures, no regex engine), and the incident adapter catches **attacks split across chunk boundaries** via a rolling window.
 
 The lifecycle test proves the flow offline: a novel prompt attack becomes an antibody candidate → the verifier admits it → replay over 4,000 labeled streams measures recall ≥ 99% and FP < 0.5% → the canary walks 1→10→50→100% → **signed** promotion. A deliberately-inserted capability expansion is **rejected even with perfect fitness**, and an injected regression **rolls back automatically** mid-canary.
+
+## Streaming mixture of agents (`packages/radio-moe`)
+
+The TypeScript companion (ADR-395–399): a **real-time streaming, P2P mixture of
+agents**. AgentRadio (`@metaharness/radio`) is the metadata-only local control
+plane; an **ed25519-signed** transport carries typed `AgentFrame`s; experts run
+on real backends — `claude -p` / `codex exec` subprocess streaming, **OpenRouter**
+and **Gemini-on-GCP** SSE adapters. Every run is packaged as an **RVF-style
+witness trajectory** (hash-chained, tamper-evident).
+
+```bash
+cd packages/radio-moe
+npm test        # 27 offline deterministic tests (incl. adversarial E2E)
+npm run mesh    # 3-peer mesh — offline fake experts, or LIVE with OPENROUTER_API_KEY
+npm run bench   # sign/verify/fold/chain throughput
+```
+
+**Live-verified** (2026-08-16, `openai/gpt-4o-mini`): 107 signed frames from 3
+concurrent expert streams folded in **1.77 s**; 107/107 signatures verified;
+trajectory root re-derived. **Bench** (N=1000): sign ~39k frames/s · verify
+~17k/s (≈0.06 ms/frame vs the <1 ms ADR-396 budget) · witness chain ~150k/s ·
+e2e fold ~23k frames/s. `npm audit --omit=dev`: 0 vulnerabilities.
 
 ## First product wedge
 

@@ -145,11 +145,19 @@ when it expires        · how to reverse it</pre>
     <tr><td>capability-expansion attempt, perfect fitness</td><td><b class="g">rejected</b></td></tr>
     <tr><td>injected regression at 10%</td><td><b class="g">automatic rollback</b></td></tr>
   </table>
-  <p style="margin-top:1rem"><code class="inl">cargo test</code> — 33 tests across six crates: <code class="inl">constitution</code> · <code class="inl">agl-types</code> · <code class="inl">verifier</code> · <code class="inl">antibody</code> · <code class="inl">evaluator</code> · <code class="inl">promotion</code>.</p>
+  <p style="margin-top:1rem"><code class="inl">cargo test</code> — 71 tests across thirteen crates, and the promotion path is <b>cryptographically closed</b> (ADR-394): all 9 findings of an independent security review are closed — signed receipts from ≥2 pinned judges, beats-parent with non-inferiority, content-bound manifests, independently re-derived invariant proofs, verified two-phase rollback, constitutionally-pinned role keys.</p>
 </div></div></section>
 
 <section class="blk"><div class="wrap reveal"><div class="card">
-  <span class="num">06 · HONESTY</span>
+  <span class="num">06 · LIVE, ON REAL MODELS</span>
+  <h2>A streaming mixture of agents. Signed, live.</h2>
+  <p><code class="inl">packages/radio-moe</code> (ADR-395–399) runs a 3-peer expert mesh against <b>real hosted models</b>: each peer streams ed25519-signed <code class="inl">AgentFrame</code>s, every frame is folded into the shared trajectory the instant it arrives, and the whole run is packaged as a tamper-evident <b>RVF witness chain</b>.</p>
+  <p><a href="https://github.com/ruvnet/autogenous/blob/main/docs/adr/ADR-399-provider-backed-mesh-run-rvm-rvf.md"><img src="assets/mesh-run.svg" alt="Live mesh run: 107 signed frames over OpenRouter in 1.77s, trajectory verified" style="max-width:100%;border-radius:10px"/></a></p>
+  <p>Live-verified over OpenRouter: <b>107 signed frames</b> from 3 concurrent expert streams in <b>1.77&thinsp;s</b>, 107/107 signatures verified, trajectory root re-derived. Offline, the same pipeline runs with zero keys — <code class="inl">npm run mesh</code>.</p>
+</div></div></section>
+
+<section class="blk"><div class="wrap reveal"><div class="card">
+  <span class="num">07 · HONESTY</span>
   <h2>What this is not. Yet.</h2>
   <p>This is a <b>research prototype of the control-plane contract</b> — typed, tested, deterministic, offline. It is not yet wired to live MidStream / MetaHarness / RVF / RVM (those components are alpha), the economics are hypotheses until benchmarked, and invented-representation research sits behind a <span class="k">semantic airlock</span>: nothing opaque gets executable authority without being lowered through a known semantic model first.</p>
   <p>The biggest known failure mode is the system learning to satisfy its evaluator instead of reality. The defenses — hidden rotating evaluations, adversarial testing, capability separation, signed witnesses — are design commitments recorded in <a style="color:var(--amber)" href="https://github.com/ruvnet/autogenous/tree/main/docs/adr">ADR-391/392/393</a>.</p>

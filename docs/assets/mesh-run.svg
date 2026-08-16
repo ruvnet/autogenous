@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="330" viewBox="0 0 760 330" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13">
+  <rect width="760" height="330" rx="10" fill="#0d1117"/>
+  <rect width="760" height="34" rx="10" fill="#161b22"/>
+  <circle cx="20" cy="17" r="5.5" fill="#ff5f57"/><circle cx="40" cy="17" r="5.5" fill="#febc2e"/><circle cx="60" cy="17" r="5.5" fill="#28c840"/>
+  <text x="380" y="21" fill="#8b949e" text-anchor="middle" font-size="12">radio-moe · live streaming mixture of agents — OpenRouter</text>
+  <text x="20" y="58" fill="#7ee787">$ OPENROUTER_API_KEY=*** npm run mesh</text>
+  <text x="20" y="82" fill="#c9d1d9">mesh: architect(2f155026…) security(869c756f…) perf(bef86525…)</text>
+  <text x="20" y="102" fill="#c9d1d9">mode: <tspan fill="#79c0ff">LIVE OpenRouter (openai/gpt-4o-mini)</tspan></text>
+  <text x="20" y="130" fill="#d2a8ff">── folded 107 signed frames in 1768.1 ms ──</text>
+  <text x="20" y="152" fill="#8b949e">architect → …independent optimization of communication pathways…</text>
+  <text x="20" y="170" fill="#8b949e">security  → …dynamic delegation without compromising control…</text>
+  <text x="20" y="188" fill="#8b949e">perf      → …independent management of message flow…</text>
+  <text x="20" y="216" fill="#d2a8ff">── RVF trajectory ──</text>
+  <text x="20" y="238" fill="#c9d1d9">entries: 107   root: 76d40dd533fe213b…</text>
+  <text x="20" y="258" fill="#c9d1d9">every frame signature verifies: <tspan fill="#7ee787">true</tspan>   trajectory verifies: <tspan fill="#7ee787">true</tspan></text>
+  <text x="20" y="286" fill="#8b949e">ed25519-signed AgentFrames · witness hash-chain · 3 concurrent expert streams</text>
+  <text x="20" y="312" fill="#58a6ff">▶ ruvnet.github.io/autogenous — the full story</text>
+</svg>

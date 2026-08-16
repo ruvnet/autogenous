@@ -200,8 +200,14 @@ export function codexStreamExpert(
  * aborts — the basis for "continuous collaborative reasoning" (ADR-397). Returns
  * the total number of frames folded.
  */
+/** Anything that can stream signed frames for a prompt — satisfied structurally
+ *  by both `CommandStreamingExpert` and `HttpStreamingExpert`. */
+export interface RunnableExpert {
+  run(prompt: string, requestId: string, signal?: AbortSignal): AsyncGenerator<AgentFrame>;
+}
+
 export async function endlessMixLoop(
-  experts: CommandStreamingExpert[],
+  experts: RunnableExpert[],
   prompt: string,
   requestId: string,
   onFrame: (frame: AgentFrame) => void,

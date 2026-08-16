@@ -23,7 +23,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "demo": "node --import tsx examples/local-mesh.ts"
+    "demo": "node --import tsx examples/local-mesh.ts",
+    "mesh": "node --import tsx examples/mesh-run.ts",
+    "bench": "node --import tsx examples/bench.ts"
   },
   "dependencies": {
     "@metaharness/radio": "^0.1.0"

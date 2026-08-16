@@ -52,6 +52,7 @@ export {
   codexStreamParser,
   endlessMixLoop,
   type PartialFrame,
+  type RunnableExpert,
   type EventParser,
   type SpawnSpec,
   type StreamingExpertOptions,

@@ -1,7 +1,7 @@
 # ADR-401 — The Perpetual Intelligence Machine (capability synthesis + acceptance test)
 
-- Status: Accepted (framing + capability map) · Partial (implementation) · research addendum pending (Update 1)
-- Date: 2026-08-16
+- Status: Accepted (framing + capability map) · Partial (implementation)
+- Date: 2026-08-16 · Updated: 2026-08-16 (Update 1 — new-angles research landed; two overclaims corrected)
 - Related: ADR-395 (radio mesh), ADR-396 (peer-expert protocol + governed evolution), ADR-397 (streaming mixture of agents), ADR-398 (dev-loop integration), ADR-399 (provider-backed runs, RVM/RVF, real midstream), ADR-400 (self-evolving flywheel), metaharness ADR-322 (flywheel receipts/promotion)
 - Supersedes nothing; this ADR is the **product-level synthesis** over the ADR-395…400 substrate.
 
@@ -141,10 +141,82 @@ artifact · RVM = authority enforcement · RuView = physical-space connection
 - **Fence**: nothing here authorizes a publish, deploy, or outward-facing claim.
   The 30-day acceptance test is a *specification*, not a run.
 
-## Update 1 (pending) — new-angles research addendum
+## Update 1 (2026-08-16) — new-angles research addendum (LANDED)
 
-A scoped deep-research pass (persistent false consensus + mitigations; agent
-expertise markets + the `w=q·t·r/(c·l)` weight form; cross-org federated
-intelligence without data pooling) is running; its confirmed findings fold in
-here as Update 1 (same pattern as ADR-399's updates). Until it lands, no
-research finding is cited above as fact.
+Scoped deep-research (16 agents, ~2.3M tokens, adversarial refutation per
+high-impact claim; the *expertise-markets* search agent died on a session
+limit — that angle is under-covered, flagged below). It **validated the
+posture but corrected two overclaims.** Only claims that survived refutation
+are cited.
+
+### Angle 1 — persistent false consensus: direction confirmed, one invariant demoted
+
+The framing is right and the risk is real, with published effect sizes:
+
+- **Capable models' errors are converging** as capability rises — agreement
+  among similar models is *weakening* evidence of correctness (CAPA metric,
+  *Great Models Think Alike*, arXiv:2502.04313, ICML 2025). This directly
+  backs the `accuracyBand` penalty in `lineage-independence.ts`: two
+  frontier-band models are partially correlated regardless of provider/arch.
+- **More agents agreeing is not safety.** Unguided homogeneous debate can score
+  *worse than isolated self-correction* (20.7% vs 48.3% on GSM-Hard, 10 identical
+  agents; *The Cost of Consensus*, arXiv:2605.00914). Independence, not headcount,
+  is the safety variable.
+- **Conformity is structural**, not incidental: agents publicly conform to norms
+  they privately reject at 64–94% (*Everyone Conforms, No One Believes*,
+  arXiv:2608.02758). → dissent must be *preserved*, not majority-voted away —
+  and in ~1 in 4 divergent cases the minority holds the correct answer
+  (*Minority Sentinel*, arXiv:2606.29270). `mixture.ts` retaining contradictions
+  is the right instinct.
+- **The one mitigation with a measured effect size is task-outcome
+  verification**: adding a high-level task-objective verification step yielded
+  **+15.6% task success** (MAST, arXiv:2503.13657, NeurIPS 2025 D&B). Structured
+  adversarial debate also raises non-expert judge accuracy 48%→76% (Khan et al.,
+  arXiv:2402.06782). These back the *adversarial-expert* and *external-outcome-
+  verification* prongs of Decision 2.
+- **CORRECTION to Decision 2:** "external outcome verification *before durable-
+  memory write*" specifically has **no published effect size anywhere** as of
+  2026 (arXiv:2606.04329). It stays a standing invariant on *design* grounds —
+  but it must NOT be presented as an evidence-validated mitigation. The measured
+  win is task-outcome verification at the *action* gate (+15.6%), not the
+  memory-write gate.
+- **Durable memory is an active attack surface**, reinforcing capability 2's
+  provenance requirement: with similarity-only retrieval and no provenance, 10
+  poisoned entries captured 47.9% of retrievals and auto-load into every future
+  agent (MemoryGraft, arXiv:2512.16962; MINJA, arXiv:2601.05504). The signed,
+  hash-chained `rvf-trajectory.ts` ledger is the provenance the attack exploits
+  its absence of — but note published defenses carry *no* quantified
+  effectiveness yet, so this is a guard, not a solved problem.
+
+### Angle 2 — the weight formula has ZERO literature backing (demoted to hypothesis)
+
+No claim about agent expertise markets or the `w=q·t·r/(c·l)` weight form
+survived — or was even submitted to — verification (the search agent hit the
+session limit). **Capability 3's multiplicative weight form is an internal
+design hypothesis requiring in-house empirical validation, not a research-
+supported mechanism.** The Partial status already reflected the missing graded
+`t`; this Update adds that the *form itself* is unvalidated. (Re-running the
+under-covered angle is a loop item.)
+
+### Angle 3 — cross-org: signed-findings sharing is deployed; pooled training is pilot-stage
+
+- **Sharing signed findings is production-real** — the Cyber Threat Alliance
+  moves ~10M STIX 2.1 observables/month across 36 member vendors — but on
+  **membership/contractual trust, with no cryptographic signing and no numeric
+  confidence scores** (cyberthreatalliance.org sharing model). The mesh's
+  signed-frame + confidence disclosure is therefore *ahead* of deployed
+  practice, not behind it — capability 6's disclosure half is realistic.
+- **Federated training across sovereign orgs is pilot-stage**: Swift's 13-bank
+  federated fraud model was 2× as effective — but only on 10M *synthetic*
+  transactions, real-data trials still ahead (swift.com, 15 Sep 2025). So
+  capability 6's "cooperate without pooling data" via *shared model training*
+  remains research, while *shared findings* is deployable now.
+
+### Net effect on this ADR
+
+No capability status changes, but three honesty corrections stand: (a) the
+memory-write verification invariant is design-motivated, not evidence-validated
+— the validated win is at the action gate; (b) the `w=q·t·r/(c·l)` form is an
+unvalidated in-house hypothesis; (c) capability 6 splits into a deployable
+disclosure half and a research pooled-training half. Full research note archived
+at `docs/research/2026-08-16-pim-new-angles.md`.

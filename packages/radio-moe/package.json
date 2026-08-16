@@ -25,7 +25,9 @@
     "test": "node --import tsx --test test/*.test.ts",
     "demo": "node --import tsx examples/local-mesh.ts",
     "mesh": "node --import tsx examples/mesh-run.ts",
-    "bench": "node --import tsx examples/bench.ts"
+    "bench": "node --import tsx examples/bench.ts",
+    "evolve": "node --import tsx examples/evolve-run.ts",
+    "example:custom": "node --import tsx examples/custom-harness.ts"
   },
   "dependencies": {
     "@metaharness/radio": "^0.1.0"

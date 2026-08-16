@@ -173,3 +173,20 @@ export {
 
 // ADR-396 production profile: hash-chained batch signing (1 signature per batch).
 export { sealBatch, verifyBatch, BatchSigner, MAX_BATCH, type BatchSeal } from './batch-signing.js';
+
+// Self-evolving mesh (ADR-400): governed evolution of the ADR-396-evolvable
+// parameters only, flywheel receipts, frozen conjunctive promotion gate.
+export {
+  evolveMesh,
+  evaluate as evaluateMeshParams,
+  mutate as mutateMeshParams,
+  promotable,
+  verifyLedger,
+  lcg,
+  CEILINGS,
+  PROMOTION_MARGIN,
+  type EvolvableParams,
+  type Fitness,
+  type GenerationRecord,
+  type EvolutionResult,
+} from './mesh-evolve.js';

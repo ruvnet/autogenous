@@ -63,7 +63,7 @@ healthy restore.
 | 4 | invariants self-asserted | **Partly closed** — proof *references* required (bare booleans rejected); independent *resolution* of the referenced artifact is the tracked next depth |
 | 5 | effects caller-supplied | **Closed** — effects live inside the content-addressed manifest |
 | 6 | rollback represented not executed | **Closed** — the `deployment` crate's two-phase `verified_rollback` *commands* restoration through a `DeploymentAdapter`, confirms the active artifact hash **and** health, and emits an **ed25519-signed `RollbackReceipt`**; the canary sets `rolled_back`/`slos_met` only on a confirmed healthy restore (a failed or degraded restore yields no receipt and fails the SLO) |
-| 7 | rolling-window dup incidents / raw excerpt | **Open** — edge-triggering + keyed fingerprints tracked |
+| 7 | rolling-window dup incidents / raw excerpt | **Closed** — `midstream-adapter` now **edge-triggers** (fires only on the false→true rising edge per antibody, re-arming on the falling edge, so a match lingering in the rolling window no longer re-emits per chunk); the raw excerpt is replaced by a **keyed `HMAC-SHA256` fingerprint** that correlates occurrences without carrying the matched text |
 | 8 | duplicate-signer quorum | **Closed** — distinct signers required |
 | 9 | CI below standard | **Closed** — fmt + clippy(-D) + audit |
 
@@ -75,15 +75,18 @@ constructs exactly the review's adversarial candidate and asserts **≥6 distinc
 runtime acceptance test now runs the full loop on this closed path: an unseen
 attack becomes a **signed, independently-evaluated** defense (2 distinct judges +
 a verified envelope) that **beats the parent**, with a verified lineage chain and
-an injected regression rolling back within the SLO. 66 tests; `cargo audit`,
-`fmt --check`, and `clippy -D warnings` all clean.
+an injected regression rolling back within the SLO. `midstream-adapter` proves
+edge-triggering (a match lingering in the rolling window fires once, re-arms on
+the falling edge) and keyed-fingerprint correlation (same key + match → same
+fingerprint; different key → different; raw text never carried). 68 tests;
+`cargo audit`, `fmt --check`, and `clippy -D warnings` all clean.
 
 ## Next (per the review's phased plan)
 
-Independent proof resolution (finding #4 fully — the referenced artifact is
-required but not yet independently *re-derived*); detector-incident
-edge-triggering + keyed fingerprints (finding #7 — the last open item); fold the
-pinned role keys into `Constitution` itself; raise the receipt `MIN_SAMPLES`
-floor toward the review's 100k for production profiles; back `DeploymentAdapter`
-with a real router/orchestrator (the `InMemoryAdapter` is the deterministic
-reference — the trait is the seam a production surface implements).
+**Finding #4 is the last remaining item:** independent *resolution* of the
+invariant proof references — the referenced artifact is required but not yet
+independently *re-derived*. Then: fold the pinned role keys into `Constitution`
+itself; raise the receipt `MIN_SAMPLES` floor toward the review's 100k for
+production profiles; back `DeploymentAdapter` with a real router/orchestrator
+(the `InMemoryAdapter` is the deterministic reference — the trait is the seam a
+production surface implements).

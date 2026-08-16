@@ -12,6 +12,7 @@ agl-types = { path = "../agl-types" }
 antibody = { path = "../antibody" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.10"
 
 [dev-dependencies]
 evaluator = { path = "../evaluator" }

@@ -245,3 +245,27 @@ Trade-off recorded honestly: batch signing amortizes integrity over ≤64 frames
 — a receiver exposes output only after its batch authenticates (ADR-396's
 condition), so worst-case added latency is one batch window; per-frame signing
 remains the default for adversarial/low-trust profiles. 70 package tests.
+
+## Update 7 (2026-08-16): real-midstream wiring probe — honest blocker recorded
+
+Isolated install probe of `midstreamer@0.3.1` (the npm surface of the midstream
+stack), evidence exact:
+
+- **Default entry broken as published**: `main`/`module` point at `dist/` which
+  is NOT in the tarball (shipped files: `package.json`, `quic.js`, docs only);
+  the `exports` map exposes only `./quic` — so `import 'midstreamer'`
+  (the advertised WASM temporal-compare/scheduling surface) throws
+  `ERR_PACKAGE_PATH_NOT_EXPORTED` by construction. Upstream packaging bug —
+  filing the issue is an outward action, recorded as a human item.
+- **`midstreamer/quic` loads** (`loadQuicTransport`/`isQuicAvailable`/`isNative`,
+  delegating to agentic-flow's production QUIC stack) — but
+  `isQuicAvailable() === false` on this host (native transport absent), and the
+  dependency tree is **580 packages / 2.0 GB** via `agentic-flow@2.0.12`.
+
+Decision: do NOT vendor a 2 GB dep for a currently-unavailable transport and a
+broken WASM entry. The `DataTransport` interface remains the seam; when
+upstream ships a fixed `midstreamer` (dist/ present, native QUIC resolvable), a
+`QuicDataTransport` drops in behind an env flag with no redesign. Tailnet
+cross-machine run remains blocked on peer availability (zenbook down again at
+15:5x; retried each tick). Flywheel turn 3 (seed 23): champion held, 0
+promotions, gates pass — plateau consistent; bench-widening queued.

@@ -28,7 +28,8 @@
 import { PeerIdentity } from '../src/transport.js';
 import { signFrame } from '../src/agent-frame.js';
 import { MixtureState, signContributionInput } from '../src/mixture.js';
-import { effectiveSupport, type LineageSupport, type ModelLineage } from '../src/lineage-independence.js';
+import { type ModelLineage } from '../src/lineage-independence.js';
+import { lineageRegistry, lineageWeightedWinner } from '../src/lineage-decision.js';
 import {
   EXPERTS,
   INDEPENDENT_CORPUS,
@@ -44,9 +45,10 @@ const TRUSTED: Record<string, string> = Object.fromEntries(
 );
 
 /** Each expert's model lineage — what lineage-weighted fusion keys independence on. */
-const LINEAGE = new Map<string, ModelLineage>(
+const LINEAGE_REGISTRY: Record<string, ModelLineage> = Object.fromEntries(
   EXPERTS.map((e) => [e.id, { provider: e.provider, arch: e.arch, sizeClass: e.sizeClass, modelId: e.id }]),
 );
+const RESOLVE_LINEAGE = lineageRegistry(LINEAGE_REGISTRY);
 
 /** Deterministic tie-break so equal-weight claims resolve identically every run. */
 function argmax(scores: Map<string, number>): string {
@@ -72,9 +74,12 @@ function naiveVoteAnswer(task: Task): string {
   return argmax(votes);
 }
 
-/** Real `MixtureState` fusion: each expert streams one signed support frame for
- *  its chosen claim; the fused answer is the highest net-weight claim. */
-function mixtureAnswer(task: Task): string {
+/** Drive the REAL `MixtureState` once per task (each expert streams one signed
+ *  support frame), then read both fused decisions off the same snapshot:
+ *   • `mixture` — the coefficient fusion + sourceId de-dup (highest net weight)
+ *   • `lineage` — `lineageWeightedWinner` re-resolves the winner by lineage
+ *     `effectiveSupport` (the real src/lineage-decision.ts, dogfooded here). */
+function fuse(task: Task): { mixture: string; lineage: string } {
   const mix = new MixtureState({
     requestId: task.id,
     trustedSigners: TRUSTED,
@@ -115,25 +120,10 @@ function mixtureAnswer(task: Task): string {
   const snap = mix.snapshot();
   const byClaim = new Map<string, number>();
   for (const claim of snap.claims) byClaim.set(claim.claimId, claim.netWeight);
-  return argmax(byClaim);
-}
-
-/** Lineage-weighted fusion: the fused answer is the claim with the greatest
- *  `effectiveSupport` — greedy min-pairwise independence over supporter lineage,
- *  so N same-provider/arch supporters count far less than N independent ones.
- *  This is the false-consensus guard the coefficient mixture lacks: it keys on
- *  provider/arch, not just shared sourceIds. */
-function lineageFusedAnswer(task: Task): string {
-  const byClaim = new Map<string, LineageSupport[]>();
-  for (const e of EXPERTS) {
-    const a = answer(e.id, task);
-    const supporters = byClaim.get(a.claimId) ?? [];
-    supporters.push({ agentId: e.id, principalId: 'p', lineage: LINEAGE.get(e.id)!, sourceIds: a.sourceIds });
-    byClaim.set(a.claimId, supporters);
-  }
-  const scores = new Map<string, number>();
-  for (const [claim, supporters] of byClaim) scores.set(claim, effectiveSupport(supporters));
-  return argmax(scores);
+  return {
+    mixture: argmax(byClaim),
+    lineage: lineageWeightedWinner(snap, RESOLVE_LINEAGE).claimId ?? '',
+  };
 }
 
 export interface CorpusReport {
@@ -161,8 +151,9 @@ export function runFusionBench(corpus: Task[], label: string): CorpusReport {
   }));
   const bestSingle = Math.max(...perExpert.map((p) => p.accuracy));
   const naiveVote = acc(corpus.filter((t) => naiveVoteAnswer(t) === t.groundTruth).length, corpus.length);
-  const mixture = acc(corpus.filter((t) => mixtureAnswer(t) === t.groundTruth).length, corpus.length);
-  const lineageMixture = acc(corpus.filter((t) => lineageFusedAnswer(t) === t.groundTruth).length, corpus.length);
+  const fused = corpus.map((t) => ({ t, ...fuse(t) }));
+  const mixture = acc(fused.filter((f) => f.mixture === f.t.groundTruth).length, corpus.length);
+  const lineageMixture = acc(fused.filter((f) => f.lineage === f.t.groundTruth).length, corpus.length);
   return {
     label,
     tasks: corpus.length,

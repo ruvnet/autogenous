@@ -153,6 +153,16 @@ export {
   type CertPolicy,
 } from './lineage-independence.js';
 
+// Lineage-weighted fusion decision — re-resolve a mixture snapshot's winner by
+// effectiveSupport over supporter lineage (the false-consensus guard the
+// coefficient mixture's sourceId de-dup alone does not provide; ADR-401 cap 3).
+export {
+  lineageWeightedWinner,
+  lineageRegistry,
+  type LineageDecision,
+  type LineageResolver,
+} from './lineage-decision.js';
+
 // Direct signed TCP peer transport (ADR-395/396 reference adapter — integrity
 // only; production requires QUIC+mTLS or equivalent).
 export {

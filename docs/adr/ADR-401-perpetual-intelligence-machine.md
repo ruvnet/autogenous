@@ -109,7 +109,15 @@ Status legend: **Built** (in `packages/radio-moe/src`, tested) · **Partial**
    naive). Empirical proof of Decision 2 / capability 3: *independence must be
    measured by lineage, not just shared sourceIds.* Produced by the mesh itself
    (codex implementer expert wrote the corpus; the mixer wrote the fusion
-   harness).
+   harness). **Optimization landed**: the lineage-weighted decision is now a
+   reusable exported module `src/lineage-decision.ts` (`lineageWeightedWinner`
+   re-resolves a mixture snapshot's winner by `effectiveSupport`, fail-closed on
+   unknown lineage), dogfooded by the bench and unit-tested
+   (`test/lineage-decision.test.ts`). **Remaining seam**: the action gate's
+   `independentSupportSet` is still *binary* (distinct modelId ∧ disjoint
+   sourceIds) — upgrading it to the graded `effectiveSupport` quorum is
+   security-sensitive (it changes when actions execute) and is the next
+   checkpoint item.
 3. **Measurable learning from outcomes** — flywheel promotion ledger
    (`mesh-evolve.ts`); measured +81.8% separation then honest plateau (ADR-400).
    Ties into the already-queued bench-widening.

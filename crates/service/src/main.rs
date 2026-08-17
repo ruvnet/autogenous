@@ -21,7 +21,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use promotion::{CanaryController, Decision};
+use constitution::Constitution;
+use envelope::{verify_promotion_artifact, CandidateManifest, EvaluationReceipt, ProofArtifact, PromotionEnvelope};
+use promotion::{CanaryController, CanaryState, Decision};
 use serde::{Deserialize, Serialize};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -186,6 +188,79 @@ async fn canary_observe(Json(mut req): Json<CanaryObserveRequest>) -> Json<Canar
     })
 }
 
+// ---- Signed promotion (ADR-394 cryptographic closure) -------------------
+// The verifier role (ADR-392 §11): the service does NOT sign as a judge — it
+// verifies independently-produced, ed25519-signed evaluation receipts (≥2
+// distinct pinned judges, beats-parent) against the constitution's pinned keys,
+// then finalizes the canary. Every input is content-bound; there is no
+// caller-supplied boolean. `verify_promotion_artifact` returns EVERY violation.
+
+#[derive(Deserialize)]
+struct PromoteRequest {
+    constitution: Constitution,
+    parent: Genome,
+    manifest: CandidateManifest,
+    receipts: Vec<EvaluationReceipt>,
+    envelope: PromotionEnvelope,
+    #[serde(default)]
+    proof_artifacts: Vec<ProofArtifact>,
+    /// The canary controller (must be at 100% healthy to finalize).
+    controller: CanaryController,
+    now: u64,
+}
+
+#[derive(Serialize)]
+struct PromoteResponse {
+    promoted: bool,
+    /// The promotion signature (the envelope nonce) when promoted.
+    signature: Option<String>,
+    /// The controller after the transition (state `Promoted` on success).
+    controller: CanaryController,
+    /// Every independent reason the promotion was refused (empty on success).
+    rejects: Vec<String>,
+}
+
+/// Verify a signed promotion bundle and, if clean, finalize the canary.
+async fn promote(Json(req): Json<PromoteRequest>) -> Json<PromoteResponse> {
+    let mut controller = req.controller;
+    match verify_promotion_artifact(
+        &req.constitution,
+        &req.parent,
+        &req.manifest,
+        &req.receipts,
+        &req.envelope,
+        &req.proof_artifacts,
+        req.now,
+    ) {
+        Ok(vp) => match controller.promote(&vp, req.now) {
+            Ok(()) => {
+                let signature = match &controller.state {
+                    CanaryState::Promoted { signature } => Some(signature.clone()),
+                    _ => None,
+                };
+                Json(PromoteResponse {
+                    promoted: true,
+                    signature,
+                    controller,
+                    rejects: vec![],
+                })
+            }
+            Err(e) => Json(PromoteResponse {
+                promoted: false,
+                signature: None,
+                controller,
+                rejects: vec![e],
+            }),
+        },
+        Err(rejects) => Json(PromoteResponse {
+            promoted: false,
+            signature: None,
+            controller,
+            rejects: rejects.iter().map(|r| format!("{r:?}")).collect(),
+        }),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -200,7 +275,8 @@ async fn main() {
         .route("/v1/agl/admit", post(agl_admit))
         .route("/v1/agl/fitness", post(agl_fitness))
         .route("/v1/canary/new", post(canary_new))
-        .route("/v1/canary/observe", post(canary_observe));
+        .route("/v1/canary/observe", post(canary_observe))
+        .route("/v1/promote", post(promote));
 
     let port: u16 = std::env::var("PORT")
         .ok()

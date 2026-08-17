@@ -67,13 +67,18 @@ name = "autogenous-service"
 version = "0.1.0"
 dependencies = [
  "agl-types",
+ "antibody",
  "axum",
+ "constitution",
+ "envelope",
+ "evaluator",
  "promotion",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "witness",
 ]
 
 [[package]]

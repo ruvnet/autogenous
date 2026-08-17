@@ -2,7 +2,7 @@
 
 - Status: **Accepted** · Item 1 (VerifiedPromotion) **Implemented**; items 2 (concurrent-promotion fencing) & 4 (durable replay + restart reconstruction) **Partially implemented**; item 3 (enforced isolation) **Accepted-design, pending**
 - Date: 2026-08-16
-- Updated: 2026-08-16 — (a) durable promotion ledger (`ledger` crate) wired into `run_canary` — item 4 replay-protection + restart-reconstruction built; (b) per-target promotion lock (`deployment::PromotionLockRegistry`) wired into `run_canary_guarded` — item 2 concurrent-promotion fencing built.
+- Updated: 2026-08-16 — (a) durable promotion ledger (`ledger` crate) wired into `run_canary` — item 4 replay-protection + restart-reconstruction built; (b) per-target promotion lock (`deployment::PromotionLockRegistry`) wired into `run_canary_guarded` — item 2 concurrent-promotion fencing built; (c) crash-safe canary-state `Checkpoint` wired into `run_canary_checkpointed` — item 4 mid-rollout resume built.
 - Related: ADR-392 (genome/antibody), ADR-394 (cryptographic closure of the promotion path), ADR-400/401 (evolution/PIM). Supersedes nothing.
 - Driver: external security review — *"the main missing capability is a verifiable execution loop: Autogenous can model, score, sign, and simulate adaptations, but it cannot prove that the evaluated artifact is exactly what reaches production under enforced limits and recoverable state."*
 
@@ -87,10 +87,17 @@ An acceptance test proves a durably-committed promotion cannot be replayed by a 
 controller after a simulated restart (item-1 in-process single-use alone would not
 catch that).
 
-**Still pending for item 4:** durable checkpoint of *mid-rollout* canary state
-(so a crash at, say, the 50 % stage resumes rather than restarts), and making the
-ledger the single authoritative nonce store the `CanaryController` itself consults
-(today `run_canary` consults it around the controller's own in-process set).
+**Also built (crate `ledger` `Checkpoint`, wired into `run_canary_checkpointed`):**
+a crash-safe (temp-write + fsync + atomic-rename) durable snapshot of the
+canary controller, saved after **every** observation and reloaded on entry, so a
+crash at the 50 % stage **resumes there** rather than restarting from 1 %. On a
+terminal outcome the checkpoint is cleared. An acceptance test drives a rollout
+partway (to the 10 % stage), "crashes", reloads, and completes the promotion from
+the resumed stage.
+
+**Still pending for item 4:** making the ledger the single authoritative nonce
+store the `CanaryController` itself consults (today `run_canary` consults it
+around the controller's own in-process set).
 
 ## Acceptance test (the review's, verbatim intent)
 
@@ -107,10 +114,11 @@ Status against it after this ADR:
 - Restart reconstruction (of the authorized-promotion state) — **built** (item 4
   ledger): reopening reconstructs the consumed-nonce set + promotion history and a
   replayed promotion is refused post-restart.
-- Real-traffic canary, 60 s exact-parent restore, mid-rollout crash-resume —
-  **pending items 2 & 4-remainder**; the in-memory adapter proves the state machine
-  and the timed rollback SLO, not real traffic; the ledger persists committed
-  promotions but not in-flight canary stage state.
+- Mid-rollout crash-resume — **built** (item 4 `Checkpoint`): a crash partway
+  through the canary resumes at its last durable stage rather than restarting.
+- Real-traffic canary + 60 s exact-parent restore against a real surface —
+  **pending item 2-remainder**; the in-memory adapter proves the state machine and
+  the timed rollback SLO, not real production traffic.
 
 ## Consequences
 

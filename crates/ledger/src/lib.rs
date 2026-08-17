@@ -23,8 +23,52 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use witness::{content_hash, verify_chain, RecordKind, SigningAuthority, WitnessRecord};
+
+/// A durable, crash-safe **single-value** checkpoint (ADR-403 item 4). Unlike the
+/// append-only [`PromotionLedger`], this holds only the *latest* snapshot of a
+/// value — e.g. an in-flight canary controller — so a crash mid-rollout **resumes**
+/// (reload the snapshot) rather than restarting from stage 0.
+///
+/// `save` is write-through and crash-safe: it writes a temp file, fsyncs it, then
+/// atomically renames it over the target, so a crash mid-write leaves the previous
+/// good snapshot intact (never a torn file).
+pub struct Checkpoint;
+
+impl Checkpoint {
+    /// Durably persist `value`. Temp-write + fsync + atomic rename.
+    pub fn save<T: Serialize>(path: impl AsRef<Path>, value: &T) -> Result<(), LedgerError> {
+        let path = path.as_ref();
+        let json = serde_json::to_string(value).expect("checkpoint value serializes");
+        let tmp = path.with_extension("ckpt.tmp");
+        let mut f = File::create(&tmp)?;
+        f.write_all(json.as_bytes())?;
+        f.sync_all()?; // the snapshot is durable before it becomes visible
+        std::fs::rename(&tmp, path)?; // atomic replace of the previous snapshot
+        Ok(())
+    }
+
+    /// Load the last-saved value, or `None` if no checkpoint exists / is unreadable.
+    pub fn load<T: DeserializeOwned>(path: impl AsRef<Path>) -> Option<T> {
+        let path = path.as_ref();
+        if !path.exists() {
+            return None;
+        }
+        let s = std::fs::read_to_string(path).ok()?;
+        serde_json::from_str(&s).ok()
+    }
+
+    /// Remove a checkpoint (e.g. once its rollout reached a terminal state).
+    pub fn clear(path: impl AsRef<Path>) -> Result<(), LedgerError> {
+        let path = path.as_ref();
+        if path.exists() {
+            std::fs::remove_file(path)?;
+        }
+        Ok(())
+    }
+}
 
 /// The identity a promotion record binds — the same facts a
 /// `VerifiedPromotion` carries, so the ledger line is provably about one exact
@@ -293,6 +337,23 @@ mod tests {
         let err = PromotionLedger::open(&path).unwrap_err();
         assert!(matches!(err, LedgerError::PayloadMismatch(0)), "got {err}");
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn checkpoint_round_trips_and_overwrites_the_latest_snapshot() {
+        let path = tmp();
+        assert!(Checkpoint::load::<PromotionRecord>(&path).is_none());
+        let a = rec("v1");
+        Checkpoint::save(&path, &a).unwrap();
+        let back: PromotionRecord = Checkpoint::load(&path).unwrap();
+        assert_eq!(back, a);
+        // Saving again replaces (not appends) — it's a single-value snapshot.
+        let b = rec("v2");
+        Checkpoint::save(&path, &b).unwrap();
+        let back2: PromotionRecord = Checkpoint::load(&path).unwrap();
+        assert_eq!(back2, b);
+        Checkpoint::clear(&path).unwrap();
+        assert!(Checkpoint::load::<PromotionRecord>(&path).is_none());
     }
 
     #[test]

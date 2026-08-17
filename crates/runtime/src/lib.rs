@@ -25,9 +25,10 @@ use envelope::{
 };
 use evaluator::Corpus;
 use generator::{propose, AttackEvidence, GeneratorConfig};
-use ledger::{PromotionLedger, PromotionRecord};
+use ledger::{Checkpoint, PromotionLedger, PromotionRecord};
 use lineage::{LineageGraph, Node, NodeKind};
 use promotion::{CanaryController, Decision};
+use std::path::Path;
 use witness::{content_hash, SigningAuthority};
 
 /// A clock, injected so timing is deterministic in tests and real in production.
@@ -366,7 +367,7 @@ impl Runtime {
         promotion: &VerifiedPromotion,
         clock: &C,
         adapter: &mut A,
-        mut next_fitness: F,
+        next_fitness: F,
         observations_per_stage: u32,
         max_samples: usize,
         slos: Slos,
@@ -374,18 +375,95 @@ impl Runtime {
         // nonce already committed here is refused BEFORE promoting — durable,
         // cross-restart, cross-controller replay protection — and a fresh
         // promotion is recorded (fsync'd) so it survives a restart.
-        mut ledger: Option<&mut PromotionLedger>,
+        ledger: Option<&mut PromotionLedger>,
     ) -> CanaryOutcome {
         // The controller's identity is bound to the verified artifact: it can
         // only finalize by consuming exactly this promotion (ADR-403 item 1).
-        let candidate_id = promotion.candidate_hash();
-        let rollback_target = promotion.rollback_target();
         let mut ctrl = CanaryController::new(
-            candidate_id,
-            rollback_target,
+            promotion.candidate_hash(),
+            promotion.rollback_target(),
             self.gates,
             observations_per_stage,
         );
+        self.drive_canary(
+            &mut ctrl,
+            promotion,
+            clock,
+            adapter,
+            next_fitness,
+            max_samples,
+            slos,
+            ledger,
+            None,
+        )
+    }
+
+    /// `run_canary` with a **durable mid-rollout checkpoint** (ADR-403 item 4). The
+    /// controller's state is snapshotted (fsync'd) after every observation and
+    /// reloaded on entry, so a crash at, say, the 50 % stage **resumes** there
+    /// rather than restarting from 1 %. If `checkpoint_path` holds a snapshot it is
+    /// restored (the `promotion`/`observations_per_stage` args then only seed a
+    /// fresh controller when no snapshot exists). On a terminal outcome (promoted
+    /// or rolled back) the checkpoint is cleared.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run_canary_checkpointed<
+        C: Clock,
+        F: FnMut(&C) -> FitnessVector,
+        A: DeploymentAdapter,
+    >(
+        &self,
+        checkpoint_path: &Path,
+        promotion: &VerifiedPromotion,
+        clock: &C,
+        adapter: &mut A,
+        next_fitness: F,
+        observations_per_stage: u32,
+        max_samples: usize,
+        slos: Slos,
+        ledger: Option<&mut PromotionLedger>,
+    ) -> CanaryOutcome {
+        let mut ctrl: CanaryController = Checkpoint::load(checkpoint_path).unwrap_or_else(|| {
+            CanaryController::new(
+                promotion.candidate_hash(),
+                promotion.rollback_target(),
+                self.gates,
+                observations_per_stage,
+            )
+        });
+        let outcome = self.drive_canary(
+            &mut ctrl,
+            promotion,
+            clock,
+            adapter,
+            next_fitness,
+            max_samples,
+            slos,
+            ledger,
+            Some(checkpoint_path),
+        );
+        if outcome.promoted || outcome.rolled_back {
+            let _ = Checkpoint::clear(checkpoint_path);
+        }
+        outcome
+    }
+
+    /// The shared canary-driving loop. Operates on a caller-provided controller
+    /// (fresh or restored from a checkpoint). When `checkpoint` is `Some`, the
+    /// controller state is durably snapshotted after every observation.
+    #[allow(clippy::too_many_arguments)]
+    fn drive_canary<C: Clock, F: FnMut(&C) -> FitnessVector, A: DeploymentAdapter>(
+        &self,
+        ctrl: &mut CanaryController,
+        promotion: &VerifiedPromotion,
+        clock: &C,
+        adapter: &mut A,
+        mut next_fitness: F,
+        max_samples: usize,
+        slos: Slos,
+        mut ledger: Option<&mut PromotionLedger>,
+        checkpoint: Option<&Path>,
+    ) -> CanaryOutcome {
+        let rollback_target = promotion.rollback_target();
         let mut promoted = false;
         let mut rolled_back = false;
         let mut rollback_init_ms = None;
@@ -395,7 +473,13 @@ impl Runtime {
         for _ in 0..max_samples {
             let f = next_fitness(clock);
             let before = clock.now_millis();
-            match ctrl.observe(&f) {
+            let decision = ctrl.observe(&f);
+            // Snapshot AFTER applying the observation, so a crash resumes from the
+            // last durably-recorded stage (durability barrier per step).
+            if let Some(path) = checkpoint {
+                let _ = Checkpoint::save(path, &*ctrl);
+            }
+            match decision {
                 Decision::RollBack { .. } => {
                     rollback_init_ms = Some(clock.now_millis().saturating_sub(before));
                     // Finding #6: actually COMMAND the restoration and confirm it —

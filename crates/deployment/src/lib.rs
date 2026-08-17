@@ -102,6 +102,70 @@ pub fn verified_rollback<A: DeploymentAdapter>(
     })
 }
 
+/// A per-target promotion lock (ADR-403 item 2 — *fence concurrent promotions*).
+///
+/// At most one rollout may be in-flight to a given deployment target at a time,
+/// so two candidates cannot race to flip the **same** target's traffic (a
+/// split-brain where each thinks it won). It is thread-safe — a real orchestrator
+/// runs rollouts concurrently — and a held target fails a second `acquire`
+/// fast (fence, not block); distinct targets never contend. The guard releases
+/// the lock on drop, so a rollout that panics or returns early cannot wedge the
+/// target permanently.
+#[derive(Clone, Default)]
+pub struct PromotionLockRegistry {
+    held: std::sync::Arc<std::sync::Mutex<std::collections::BTreeSet<String>>>,
+}
+
+/// Proof of exclusive promotion rights to one target. Releases on drop.
+#[must_use = "dropping the guard immediately releases the promotion lock"]
+pub struct PromotionGuard {
+    target: String,
+    held: std::sync::Arc<std::sync::Mutex<std::collections::BTreeSet<String>>>,
+}
+
+impl PromotionLockRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Acquire exclusive promotion rights to `target`. Returns `None` if another
+    /// rollout already holds it (the caller must NOT promote to that target).
+    pub fn acquire(&self, target: &str) -> Option<PromotionGuard> {
+        let mut held = self.held.lock().expect("promotion lock poisoned");
+        if held.contains(target) {
+            return None;
+        }
+        held.insert(target.to_string());
+        Some(PromotionGuard {
+            target: target.to_string(),
+            held: self.held.clone(),
+        })
+    }
+
+    /// Is a rollout currently in-flight to `target`?
+    pub fn is_locked(&self, target: &str) -> bool {
+        self.held
+            .lock()
+            .expect("promotion lock poisoned")
+            .contains(target)
+    }
+}
+
+impl PromotionGuard {
+    /// The target this guard fences.
+    pub fn target(&self) -> &str {
+        &self.target
+    }
+}
+
+impl Drop for PromotionGuard {
+    fn drop(&mut self) {
+        if let Ok(mut held) = self.held.lock() {
+            held.remove(&self.target);
+        }
+    }
+}
+
 /// Deterministic in-memory reference adapter for tests and the demo.
 #[derive(Clone, Debug, Default)]
 pub struct InMemoryAdapter {
@@ -205,5 +269,54 @@ mod tests {
         let mut receipt = verified_rollback(&mut a, &controller, "parent", 0).unwrap();
         receipt.restored_hash = "something-else".into(); // seal no longer binds it
         assert!(!receipt.is_valid());
+    }
+
+    #[test]
+    fn promotion_lock_fences_the_same_target_but_not_distinct_ones() {
+        let reg = PromotionLockRegistry::new();
+        let g = reg.acquire("service-A").expect("first acquire wins");
+        assert!(reg.is_locked("service-A"));
+        // A second rollout to the SAME target is fenced.
+        assert!(reg.acquire("service-A").is_none());
+        // A DIFFERENT target is independent.
+        let g2 = reg.acquire("service-B").expect("distinct target free");
+        assert_eq!(g.target(), "service-A");
+        assert_eq!(g2.target(), "service-B");
+        // Releasing A frees it for the next rollout.
+        drop(g);
+        assert!(!reg.is_locked("service-A"));
+        let g3 = reg.acquire("service-A").expect("re-acquire after release");
+        assert!(reg.is_locked("service-A") && reg.is_locked("service-B"));
+        drop((g2, g3));
+    }
+
+    #[test]
+    fn promotion_lock_is_mutually_exclusive_under_real_contention() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        let reg = PromotionLockRegistry::new();
+        let winners = Arc::new(AtomicUsize::new(0));
+        let mut handles = Vec::new();
+        // 16 threads race for the SAME target; exactly one may hold it at once.
+        for _ in 0..16 {
+            let reg = reg.clone();
+            let winners = winners.clone();
+            handles.push(std::thread::spawn(move || {
+                for _ in 0..1000 {
+                    if let Some(_guard) = reg.acquire("hot-target") {
+                        // Inside the critical section: no one else may be here.
+                        let prev = winners.fetch_add(1, Ordering::SeqCst);
+                        assert_eq!(prev, 0, "two rollouts held the same target at once");
+                        winners.fetch_sub(1, Ordering::SeqCst);
+                        // _guard drops here, releasing the target.
+                    }
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        // All guards released → target free again.
+        assert!(!reg.is_locked("hot-target"));
     }
 }

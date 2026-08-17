@@ -1,8 +1,8 @@
 # ADR-403 — The verifiable execution loop (promotion closure, actuation, isolation, durable recovery)
 
-- Status: **Accepted** · Item 1 (VerifiedPromotion) **Implemented**; item 4 (durable replay + restart reconstruction) **Partially implemented**; items 2–3 **Accepted-design, pending**
+- Status: **Accepted** · Item 1 (VerifiedPromotion) **Implemented**; items 2 (concurrent-promotion fencing) & 4 (durable replay + restart reconstruction) **Partially implemented**; item 3 (enforced isolation) **Accepted-design, pending**
 - Date: 2026-08-16
-- Updated: 2026-08-16 — added the durable promotion ledger (`ledger` crate) and wired it into `run_canary`; item 4's replay-protection + restart-reconstruction sub-parts are now built and tested.
+- Updated: 2026-08-16 — (a) durable promotion ledger (`ledger` crate) wired into `run_canary` — item 4 replay-protection + restart-reconstruction built; (b) per-target promotion lock (`deployment::PromotionLockRegistry`) wired into `run_canary_guarded` — item 2 concurrent-promotion fencing built.
 - Related: ADR-392 (genome/antibody), ADR-394 (cryptographic closure of the promotion path), ADR-400/401 (evolution/PIM). Supersedes nothing.
 - Driver: external security review — *"the main missing capability is a verifiable execution loop: Autogenous can model, score, sign, and simulate adaptations, but it cannot prove that the evaluated artifact is exactly what reaches production under enforced limits and recoverable state."*
 
@@ -41,13 +41,25 @@ constructed **only** by successful verification. It binds:
 This closes the review's P1 #3 / directive #1: *promotion accepts only this
 artifact, once.*
 
-### 2. Real deployment actuation (ACCEPTED-DESIGN, pending)
+### 2. Real deployment actuation (PARTIALLY IMPLEMENTED)
 
 The `DeploymentAdapter` trait must control **actual traffic** at 1/10/50/100 %,
 measure **production** outcomes (not injected fitness), **fence concurrent
 promotions** (a per-target promotion lock), and **restore the exact parent
 artifact** by content hash within the 60 s SLO. `InMemoryAdapter` stays as the
 test double; a real adapter (e.g. a gateway/router integration) is the pilot work.
+
+**Built (crate `deployment`, wired into `run_canary_guarded`):** the
+**per-target promotion lock**. `PromotionLockRegistry::acquire(target)` grants at
+most one in-flight rollout per target (the artifact a promotion supersedes), is
+thread-safe, fails fast (fence, not block) on contention, and releases on guard
+drop — so two candidates can't race to flip the same target's traffic. Proven by
+a 16-thread contention test (never two holders at once) and a runtime acceptance
+test (a busy target fences the guarded rollout; it runs once released).
+
+**Still pending for item 2:** a real (non-in-memory) `DeploymentAdapter` that
+routes actual traffic and reads **production** outcomes rather than injected
+fitness, plus binding the 60 s exact-parent-restore SLO to that real surface.
 
 ### 3. Enforced isolation (ACCEPTED-DESIGN, pending)
 

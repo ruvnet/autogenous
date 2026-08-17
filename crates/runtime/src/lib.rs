@@ -15,7 +15,10 @@ use agl_types::{FitnessVector, Genome, HardGates};
 use antibody::{Antibody, Detector};
 use constitution::Constitution;
 use deployment::verified_rollback;
-pub use deployment::{DeploymentAdapter, Health, InMemoryAdapter, RollbackReceipt};
+pub use deployment::{
+    DeploymentAdapter, Health, InMemoryAdapter, PromotionGuard, PromotionLockRegistry,
+    RollbackReceipt,
+};
 use envelope::{
     evaluate_and_sign, verify_promotion_artifact, CandidateManifest, EvaluationReceipt,
     InvariantProof, PromotionEnvelope, ProofArtifact, VerifiedPromotion,
@@ -132,6 +135,15 @@ pub struct CanaryOutcome {
     /// but could not be confirmed — the latter fails `slos_met`.
     pub rollback_receipt: Option<RollbackReceipt>,
     pub slos_met: bool,
+}
+
+/// Result of a lock-guarded rollout (ADR-403 item 2). If `fenced` is true another
+/// rollout already holds the target's promotion lock and this one did NOT run —
+/// `outcome` is `None` and nothing was promoted or rolled back.
+#[derive(Clone, Debug)]
+pub struct GuardedCanary {
+    pub fenced: bool,
+    pub outcome: Option<CanaryOutcome>,
 }
 
 /// The runtime: constitution, parent genome + its current (baseline) detector,
@@ -452,6 +464,51 @@ impl Runtime {
             parent_restore_ms,
             rollback_receipt,
             slos_met,
+        }
+    }
+
+    /// `run_canary` fenced by a per-target promotion lock (ADR-403 item 2). The
+    /// lock target is the artifact this promotion supersedes (`rollback_target`),
+    /// so two candidates cannot concurrently roll out over the same parent and
+    /// race to flip its traffic. If the target is already locked this returns
+    /// `fenced` without running; otherwise it holds the guard for the entire
+    /// rollout and releases it on return (or on any early exit / panic).
+    #[allow(clippy::too_many_arguments)]
+    pub fn run_canary_guarded<C: Clock, F: FnMut(&C) -> FitnessVector, A: DeploymentAdapter>(
+        &self,
+        lock: &PromotionLockRegistry,
+        promotion: &VerifiedPromotion,
+        clock: &C,
+        adapter: &mut A,
+        next_fitness: F,
+        observations_per_stage: u32,
+        max_samples: usize,
+        slos: Slos,
+        ledger: Option<&mut PromotionLedger>,
+    ) -> GuardedCanary {
+        let _guard: PromotionGuard = match lock.acquire(promotion.rollback_target()) {
+            Some(g) => g,
+            None => {
+                return GuardedCanary {
+                    fenced: true,
+                    outcome: None,
+                }
+            }
+        };
+        let outcome = self.run_canary(
+            promotion,
+            clock,
+            adapter,
+            next_fitness,
+            observations_per_stage,
+            max_samples,
+            slos,
+            ledger,
+        );
+        // _guard drops here, releasing the target for the next rollout.
+        GuardedCanary {
+            fenced: false,
+            outcome: Some(outcome),
         }
     }
 }

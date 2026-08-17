@@ -79,6 +79,7 @@ export type OutcomeRejection =
   | 'no-external-verifier'
   | 'insufficient-affirmation'
   | 'insufficient-independence'
+  | 'verifier-equivocation'
   | 'refuted';
 
 export interface OutcomeGateDecision {
@@ -113,8 +114,18 @@ export function admitDurableWrite(
   policy: OutcomeGatePolicy,
 ): OutcomeGateDecision {
   const external = verdicts.filter((v) => v.verified && verdictIsAuthentic(v, hash, policy));
-  // De-duplicate by verifier (one vote each; last write wins deterministically by id).
-  const byVerifier = new Map(external.map((v) => [v.verifierId, v]));
+  // EQUIVOCATION (order-independent): a verifier that signs CONFLICTING stances
+  // for the same outcome is byzantine — its "last vote" must not silently decide
+  // the write by array order. Fail closed on the whole outcome. Identical repeat
+  // verdicts (same stance) are deduplicated, not equivocation.
+  const byVerifier = new Map<string, OutcomeVerdict>();
+  let equivocation = false;
+  for (const v of external) {
+    const prior = byVerifier.get(v.verifierId);
+    if (prior && prior.stance !== v.stance) equivocation = true;
+    byVerifier.set(v.verifierId, v);
+  }
+  if (equivocation) return { affirmations: 0, refutations: 0, admit: false, rejection: 'verifier-equivocation' };
   const unique = [...byVerifier.values()];
 
   const refuters = unique.filter((v) => v.stance === 'refute');

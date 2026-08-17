@@ -84,3 +84,50 @@ test('graded independence: a same-lineage affirmer clique fails the effective-su
   assert.equal(d.rejection, 'insufficient-independence');
   assert.ok(d.effectiveSupport! < 2.0);
 });
+
+// ── P0 fix (external review): outcome verification must be ORDER-INDEPENDENT ──
+
+test("a verifier's conflicting verdicts are equivocation — both orders reject (reviewer repro)", () => {
+  const v = PeerIdentity.generate();
+  const other = PeerIdentity.generate();
+  const policy: OutcomeGatePolicy = { trustedVerifiers: trusted(v, other), contributorIds: [], minAffirmations: 1 };
+  const affirm = verdict(v, 'affirm');
+  const refute = verdict(v, 'refute');
+  const a = admitDurableWrite(HASH, [refute, affirm], policy);
+  const b = admitDurableWrite(HASH, [affirm, refute], policy);
+  assert.equal(a.admit, false);
+  assert.equal(b.admit, false);
+  assert.equal(a.rejection, 'verifier-equivocation');
+  assert.equal(b.rejection, 'verifier-equivocation');
+});
+
+test('permuting a signed verdict set 5000x yields ONE invariant decision (equivocation rejected)', () => {
+  const [e, a1, a2] = [PeerIdentity.generate(), PeerIdentity.generate(), PeerIdentity.generate()];
+  const policy: OutcomeGatePolicy = { trustedVerifiers: trusted(e, a1, a2), contributorIds: [], minAffirmations: 2 };
+  // `e` equivocates (affirm + refute); a1/a2 honestly affirm.
+  const set: OutcomeVerdict[] = [verdict(e, 'affirm'), verdict(e, 'refute'), verdict(a1, 'affirm'), verdict(a2, 'affirm')];
+
+  // deterministic Fisher–Yates via a seeded LCG (no Math.random)
+  let s = 0x9e3779b9 >>> 0;
+  const rand = () => ((s = (Math.imul(1664525, s) + 1013904223) >>> 0) / 0x100000000);
+  const results = new Set<string>();
+  for (let i = 0; i < 5000; i++) {
+    const arr = [...set];
+    for (let j = arr.length - 1; j > 0; j--) {
+      const k = Math.floor(rand() * (j + 1));
+      [arr[j], arr[k]] = [arr[k]!, arr[j]!];
+    }
+    const d = admitDurableWrite(HASH, arr, policy);
+    results.add(`${d.admit}:${d.rejection ?? 'ok'}`);
+  }
+  assert.deepEqual([...results], ['false:verifier-equivocation'], 'every permutation must reject identically');
+});
+
+test('duplicate IDENTICAL-stance verdicts are deduped, not equivocation', () => {
+  const [v, a2] = [PeerIdentity.generate(), PeerIdentity.generate()];
+  const policy: OutcomeGatePolicy = { trustedVerifiers: trusted(v, a2), contributorIds: [], minAffirmations: 2 };
+  // v affirms twice (agrees with itself) + a2 affirms → 2 distinct affirmers, admitted
+  const d = admitDurableWrite(HASH, [verdict(v, 'affirm'), verdict(v, 'affirm'), verdict(a2, 'affirm')], policy);
+  assert.equal(d.admit, true);
+  assert.equal(d.affirmations, 2);
+});

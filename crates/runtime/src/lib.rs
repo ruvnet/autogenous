@@ -58,23 +58,23 @@ impl Clock for TestClock {
     }
 }
 
-/// A real wall-clock (demo / production).
-pub struct SystemClock {
-    start: std::time::Instant,
-}
-impl Default for SystemClock {
-    fn default() -> Self {
-        SystemClock {
-            start: std::time::Instant::now(),
-        }
-    }
-}
+/// A real wall-clock (demo / production). Timestamps are Unix time — used for
+/// expiry, receipt stamps, and promotion windows, so they MUST be wall-clock,
+/// not process uptime. (Use `Instant` separately if you need elapsed latency.)
+#[derive(Default)]
+pub struct SystemClock;
 impl Clock for SystemClock {
     fn now_millis(&self) -> u128 {
-        self.start.elapsed().as_millis()
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
     }
     fn now_secs(&self) -> u64 {
-        1_800_000_000 + self.start.elapsed().as_secs()
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
     }
 }
 
@@ -420,5 +420,25 @@ impl Runtime {
             rollback_receipt,
             slos_met,
         }
+    }
+}
+
+#[cfg(test)]
+mod system_clock_tests {
+    use super::{Clock, SystemClock};
+
+    // P0 fix (external review): the production clock must be Unix wall time, not a
+    // fixed 1_800_000_000 (Jan 2027) base plus process uptime.
+    #[test]
+    fn system_clock_is_unix_wall_time_not_a_fixed_epoch() {
+        let c = SystemClock::default();
+        let secs = c.now_secs();
+        assert!(secs > 1_750_000_000, "now_secs {secs} is implausibly early");
+        assert!(secs < 2_050_000_000, "now_secs {secs} is implausibly late (fixed-epoch bug?)");
+        let millis = c.now_millis();
+        assert!(
+            (millis / 1000).abs_diff(u128::from(secs)) <= 1,
+            "now_millis and now_secs disagree: {millis}ms vs {secs}s",
+        );
     }
 }

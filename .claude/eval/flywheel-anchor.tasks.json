@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "ruflo.flywheel-anchor/v1",
+  "version": "radio-moe-anchor-v1",
+  "tasks": [
+    {
+      "id": "false-consensus-guard",
+      "q": "How does the mesh stop a same-lineage cluster from winning fusion or authorizing an action?",
+      "labels": [
+        "packages/radio-moe/src/lineage-decision.ts",
+        "packages/radio-moe/src/action-gate.ts",
+        "packages/radio-moe/src/lineage-independence.ts"
+      ]
+    },
+    {
+      "id": "observation-admission",
+      "q": "What makes a spatial observation inadmissible as evidence (fail-closed)?",
+      "labels": [
+        "packages/radio-moe/src/observation.ts"
+      ]
+    },
+    {
+      "id": "durable-write-verify",
+      "q": "What gates a durable memory write on external, adversarial-surviving verification?",
+      "labels": [
+        "packages/radio-moe/src/outcome-verifier.ts"
+      ]
+    },
+    {
+      "id": "failover-recovery",
+      "q": "How does a surviving peer take over the mixture after the primary is lost, without losing authorized state?",
+      "labels": [
+        "packages/radio-moe/src/failover.ts",
+        "packages/radio-moe/examples/bench-failover.ts"
+      ]
+    },
+    {
+      "id": "governed-promotion",
+      "q": "What is the single predicate that governs whether an evolved champion is promoted?",
+      "labels": [
+        "packages/radio-moe/src/mesh-evolve.ts"
+      ]
+    },
+    {
+      "id": "cognitum-spaces-auth",
+      "q": "How does a user authenticate to use the deployed Cognitum Spaces service?",
+      "labels": [
+        "packages/radio-moe/src/cognitum-identity.ts",
+        "packages/radio-moe/src/cognitum-spaces.ts"
+      ]
+    }
+  ]
+}

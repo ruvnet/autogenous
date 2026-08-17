@@ -233,6 +233,24 @@ Three more guards wrap the pipeline's edges. All are opt-in, composable, and
 **fail-closed** — the default when something is missing or unproven is to reject,
 not to trust.
 
+**Admit a peer before its frames are trusted** (review P1 #5). A valid signature
+proves a frame's sender *possesses* a keypair — not that it is *allowed* to
+participate. For a closed-membership mesh, pass an `AdmittedPeerRegistry` to the
+`Peer`: a validly-signed frame from an un-admitted peer is then dropped exactly
+like a bad signature (omit it for an open mesh — behaviour is unchanged).
+
+```ts
+import { AdmittedPeerRegistry, PeerIdentity, InMemorySignedTransport, Peer } from 'radio-moe';
+
+const admitted = new AdmittedPeerRegistry();
+admitted.admitIdentity(trustedPeerIdentity); // or .admit(peerId, publicKeyDerHex)
+
+const id = PeerIdentity.generate();
+const peer = new Peer(id, new InMemorySignedTransport(id, fabric), { topK: 2, tau: 0.4 }, admitted);
+// A stranger's advert/frame — validly signed but not admitted — never enters this
+// peer's gate; verifyAdmitted(sealed, admitted) === false for it.
+```
+
 **Admit an observation before it becomes evidence** (ADR-402). A perception is
 inadmissible unless every required field is present and current:
 

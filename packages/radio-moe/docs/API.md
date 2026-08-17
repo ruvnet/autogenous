@@ -30,7 +30,7 @@ import { Gate, LogitExpert, TextExpert, mixLogits, raceTextExperts, Peer, Mesh }
 | `mixLogits(...)` | fn | Real MoE combine: `Σ wᵢ·logitsᵢ`. **Throws `IncompatibleVocabError`** across vocabularies. |
 | `raceTextExperts(...)` | fn | Ensemble combine → `RaceOutcome` typed `regime: 'text-ensemble'`. |
 | `MixedPosition`, `RaceOutcome` | type | Combine outputs. |
-| `Peer` | class | Hosts experts (`host(expert)`), routes (`route(chunk, kind) → RouteResult`). |
+| `Peer` | class | Hosts experts (`host(expert)`), routes (`route(chunk, kind) → RouteResult`). Optional 4th ctor arg `admissions?: AdmittedPeerRegistry` — when given, inbound frames from un-admitted (but validly-signed) peers are dropped (P1 #5); omit for open membership. |
 | `Mesh` | class | Multi-peer coordination. |
 | `RouteResult`, `Merged` | type | `{ merged, metrics }`; metrics include `routingMs`, `timeToFirstFrameMs`, `dataFrames`, `rejectedFrames`. |
 | `cosine`, `softmax` | fn | Capability math (`./capability`). |
@@ -51,7 +51,9 @@ import { PeerIdentity, Fabric, InMemorySignedTransport, TcpPeerNode, sealBatch, 
 | `Fabric` | class | In-process message fabric for the reference transport. |
 | `InMemorySignedTransport` | class | `DataTransport` over a `Fabric` — signs every wire, verifies every inbound. |
 | `DataTransport`, `SignedWire`, `WireHandler` | type | Transport contract. |
-| `seal`, `verifySealed`, `wireBytes` | fn | Low-level wire sealing. |
+| `seal`, `verifySealed`, `wireBytes` | fn | Low-level wire sealing. `verifySealed` proves key **possession**, not admission. |
+| `AdmittedPeerRegistry` | class | Admitted-peer allowlist (P1 #5). `.admit(peerId, keyHex)` / `.admitIdentity(id)` / `.revoke(peerId)` / `.isAdmitted(peerId, keyHex)`. `admit` throws on a peerId/key fingerprint mismatch. |
+| `verifyAdmitted` | fn | `verifyAdmitted(sealed, registry)` — validly sealed **and** from an admitted peer presenting its admitted key. Use in place of `verifySealed` when the mesh is not open-membership. |
 | `TcpPeerNode`, `TcpConnection` | class | Reference **TCP** signed transport (integrity only; production wants QUIC/mTLS). |
 | `sealEnvelope`, `sendEnvelope`, `verifyEnvelope`, `ReplayGuard` | fn/class | Bounded envelopes: per-`(sender,request)` sequence, replay window, 256 KiB framing. |
 | `Envelope`, `EnvelopeKind`, `RejectReason`, `VerifyContext`, `TcpNodeOptions` | type | Transport types. |

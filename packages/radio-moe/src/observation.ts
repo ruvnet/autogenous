@@ -38,6 +38,15 @@ export interface Observation {
   expiresAt: number;
   /** Optional sensor-health signal in [0, 1]; gated when a floor is set. */
   sensorHealth?: number;
+  /** Derivation identity. A cloud recollection is not independent evidence. */
+  lineage?: {
+    origin: 'cognitum-spaces';
+    tenantId: string;
+    messageId: string;
+    sequence: number;
+    provenance: string;
+    derived: true;
+  };
 }
 
 export type ObservationRejection =
@@ -49,6 +58,7 @@ export type ObservationRejection =
   | 'missing-calibration'
   | 'bad-window'
   | 'expired'
+  | 'invalid-lineage'
   | 'unhealthy-sensor';
 
 export interface ObservationAdmission {
@@ -92,6 +102,17 @@ export function admitObservation(obs: Observation, now: number, policy: Observat
     return { admissible: false, rejection: 'bad-window' };
   }
   if (obs.issuedAt > now + skew || now >= obs.expiresAt) return { admissible: false, rejection: 'expired' };
+  if (obs.lineage !== undefined && (
+    obs.lineage.origin !== 'cognitum-spaces' ||
+    obs.lineage.derived !== true ||
+    !obs.lineage.tenantId ||
+    !obs.lineage.messageId ||
+    !Number.isSafeInteger(obs.lineage.sequence) ||
+    obs.lineage.sequence < 0 ||
+    !obs.lineage.provenance
+  )) {
+    return { admissible: false, rejection: 'invalid-lineage' };
+  }
   if (policy.minSensorHealth !== undefined) {
     if (!finiteUnit(obs.sensorHealth) || obs.sensorHealth < policy.minSensorHealth) {
       return { admissible: false, rejection: 'unhealthy-sensor' };
@@ -115,6 +136,10 @@ export interface TierThresholds {
  * the `ActionGate`. This function does not grant authority; it classifies.
  */
 export function confidenceTier(obs: Observation, thresholds: TierThresholds = { low: 0.4, high: 0.75 }): ActionTier {
+  // A Spaces event is a recollection/derived belief, not a fresh independent
+  // observation. It may refresh the world model, but must never bootstrap its
+  // own corroboration or become workflow authority on a round trip.
+  if (obs.lineage?.derived === true) return 'update-world-model';
   if (obs.confidence >= thresholds.high) return 'authorized-workflow';
   if (obs.confidence >= thresholds.low) return 'request-more-sensing';
   return 'update-world-model';

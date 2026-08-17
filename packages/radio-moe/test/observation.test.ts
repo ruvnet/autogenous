@@ -63,3 +63,28 @@ test('confidence maps to the ADR-402 action tier', () => {
   assert.equal(confidenceTier({ ...ok(), confidence: 0.5 }), 'request-more-sensing');
   assert.equal(confidenceTier({ ...ok(), confidence: 0.9 }), 'authorized-workflow');
 });
+
+test('Spaces-derived beliefs require valid lineage and cannot authorize a workflow', () => {
+  const derived: Observation = {
+    ...ok(),
+    confidence: 0.99,
+    lineage: {
+      origin: 'cognitum-spaces',
+      tenantId: 'tenant-1',
+      messageId: 'message-1',
+      sequence: 7,
+      provenance: 'edge-fusion',
+      derived: true,
+    },
+  };
+  assert.deepEqual(admitObservation(derived, NOW), { admissible: true });
+  assert.equal(confidenceTier(derived), 'update-world-model');
+  assert.equal(
+    admitObservation({ ...derived, lineage: { ...derived.lineage!, tenantId: '' } }, NOW).rejection,
+    'invalid-lineage',
+  );
+  assert.equal(
+    admitObservation({ ...derived, lineage: { ...derived.lineage!, sequence: -1 } }, NOW).rejection,
+    'invalid-lineage',
+  );
+});

@@ -1,8 +1,8 @@
 # ADR-402 — RuView + Cognitum Spaces: the spatial-intelligence layer
 
-- Status: **Proposed** (design-only — RuView & Cognitum Spaces are external
-  repos/products; this ADR specifies the layer and its seam onto the mesh, it
-  does NOT claim implementation in `radio-moe`)
+- Status: **Accepted** (the read-side adapter and fail-closed seam are
+  implemented in `radio-moe`; write-side synchronization and the 30-day
+  operational acceptance test remain separately gated rollout work)
 - Date: 2026-08-16
 - Related: ADR-401 (Perpetual Intelligence Machine — this is capability 8
   expanded), ADR-397 (streaming mixture), ADR-399 (midstream, RVM/RVF),
@@ -17,27 +17,36 @@ change, predicts what happens next, and coordinates governed actions.**
 Together they form a continuously-learning intelligence layer for **physical
 environments**.
 
-**Boundary (honest):** RuView, RuField, and Cognitum Spaces are *not* in this
-repository. What already exists here is the **fusion + governance substrate**
-they plug into — the streaming mixture (`mixture.ts`), the independence-weighted
-quorum + action gate (`lineage-independence.ts`, `action-gate.ts`), signed
-failover (`failover.ts`), the witnessed trajectory ledger (`rvf-trajectory.ts`),
-and the midstream observation adapter (`midstream-adapter`). This ADR defines
-the contract so the perception layers drop in without redesign.
+**Repository boundary:** RuView and Cognitum Spaces are external products. This
+repository owns the read adapter, typed observation admission, derived-lineage
+handling, fusion, and governance substrate they plug into — the streaming
+mixture (`mixture.ts`), independence-weighted quorum + action gate
+(`lineage-independence.ts`, `action-gate.ts`), signed failover (`failover.ts`),
+and witnessed trajectory ledger (`rvf-trajectory.ts`). It does not own OAuth
+issuance, the Spaces resource server, RuView sensing, or production deployment.
 
-**Update (2026-08-16) — Cognitum Spaces is DEPLOYED and now has a live adapter.**
-Cognitum Spaces runs on GCP (`spacesapi` Cloud Run, `GET /v1/spaces`, `cog_`-key /
-Bearer authed). `packages/radio-moe/src/cognitum-spaces.ts` (`CognitumSpacesClient`)
-connects the mesh to it and maps a Cognitum Spaces **Envelope** →
-a radio-moe `Observation` (`spacesEnvelopeToObservation`) so real spatial state
-flows through the ADR-402 `admitObservation` fail-closed admission. Auth is the
-caller's `cog_` key or a Bearer token from the Cognitum `identity` service
-(obtaining the key is the user's sign-in — an out-of-band step, never minted here).
-**Verified live** (`test/cognitum-spaces.test.ts` LIVE case, gated on
-`COGNITUM_API_KEY`): `GET /v1/spaces` → 200, and the service reports a `boundary`
-that **excludes `raw_csi`, `recordings`, `pose_frames`, `vital_waveforms`,
-`identity_observations` from the cloud** — the "raw sensing stays local" rule,
-enforced at the edge and confirmed against the running service.
+**Update (2026-08-17) — the deployed read surface and adapter are verified.**
+`packages/radio-moe/src/cognitum-spaces.ts` connects to the gateway route
+`GET /v1/spaces`, validates the response contract, and maps a Cognitum Spaces
+Envelope to a derived radio-moe `Observation`. Authentication is either a
+compatibility `cog_` key read from `COGNITUM_SPACES_API`, or a Cognitum OAuth
+access token issued to the RuView public PKCE client with audience/client
+`ruview` and scope `spaces:read`. A `cognitum-cli` session-exchange token is a
+different credential and MUST NOT be reused for Spaces.
+
+The live API-key compatibility test returned 200 and a service `boundary` that
+excludes `raw_csi`, `cir`, `rf_tensors`, `recordings`, `pose_frames`,
+`vital_waveforms`, and `identity_observations` from cloud synchronization. The
+test is gated on `COGNITUM_SPACES_API`; secret values are never logged or
+committed. OAuth rollout is coordinated by Cognitum API ADR-094 and RuView
+ADR-325 and is not claimed live until those deployments are verified.
+
+The adapter preserves tenant, message, sequence, and provenance lineage.
+Spaces-derived state is explicitly `derived` and is capped at
+`update-world-model`, regardless of confidence, preventing a cloud recollection
+from returning as apparently independent workflow authority. Missing
+confidence remains unknown (`NaN`) and missing `modelVersion` remains missing
+calibration; provenance is never used as a calibration substitute.
 
 ## Functional architecture
 
@@ -169,7 +178,7 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
 | ≥95% calibrated presence accuracy | RuView calibration + RuField typed obs | **External (RuView) — bench gap** |
 | Peer-failure detection <5s | `bench-failover.ts` (shared with ADR-401) | Protocol recovery **measured** (p50 0.34 ms at 30% loss, ≈8000× under budget); sensor/network detection latency is the external part |
 | 50% false-alert reduction via fusion | `bench-false-alert.ts` + `test/false-alert.test.ts` (corroboration fusion vs no-fusion any-sensor baseline) | **Built & measured** — 58.3% reduction (60%→25%), detection retained 100% |
-| Raw sensing data stays local | Cognitum Spaces `boundary` (live) + sovereign-peer boundary (ADR-401 cap 6) | **Verified on the deployed service** — `/v1/spaces` boundary excludes raw_csi/recordings/pose_frames/vital_waveforms/identity_observations from the cloud |
+| Raw sensing data stays local | Cognitum Spaces `boundary` (live) + sovereign-peer boundary (ADR-401 cap 6) | **Verified on the deployed read service** — `/v1/spaces` excludes raw_csi/cir/rf_tensors/recordings/pose_frames/vital_waveforms/identity_observations from cloud synchronization; write-side enforcement remains a separate gate |
 | Complete receipt per external action | `action-gate.ts` + `rvf-trajectory.ts` | Built (action side); wire perception provenance in |
 
 ## Decision
@@ -183,15 +192,21 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
    requires source identity, location, kind, confidence, privacy class,
    calibration version, and a bounded/current expiry window; missing or malformed
    any of these → **inadmissible** (fail-closed — unknown stays unknown), with a
-   per-field rejection reason. Optional sensor-health floor. `confidenceTier`
+   per-field rejection reason. Optional sensor-health floor. Derived lineage is
+   runtime-validated and Spaces recollections are restricted to world-model
+   updates, closing the feedback-laundering path. `confidenceTier`
    maps ADR-402 §5 (low → update-world-model, medium → request-more-sensing, high
    → authorized-workflow), with the top tier documented as *eligibility only* —
    an authorized action still requires independent corroboration at the
    `ActionGate` (graded quorum). Proven by `test/observation.test.ts` (6 tests).
-3. **Remaining ADR-402 loop items** (this ADR is otherwise a specification): the
-   timed failover bench (**done**, shared with ADR-401), the fusion false-alert
-   bench (**done** — `bench-false-alert.ts`), and the sovereign-peer local-data
-   boundary (the one still open, part of ADR-401 cap 6).
+3. **Credential boundaries are explicit.** The generic Cognitum CLI session
+   helper remains available only to services accepting the `cognitum-cli`
+   audience. Spaces requires RuView PKCE + `spaces:read`; compatibility API keys
+   remain read from a Spaces-specific environment variable.
+4. **Remaining ADR-402 loop items:** the timed failover bench (**done**, shared
+   with ADR-401), the fusion false-alert bench (**done** —
+   `bench-false-alert.ts`), the sovereign-peer local-data boundary (open under
+   ADR-401 capability 6), and the explicitly authorized write-side exchange.
 
 ## Consequences
 

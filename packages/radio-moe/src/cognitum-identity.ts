@@ -4,16 +4,16 @@
 //! `POST /v1/cli/session/exchange` completes a user login and issues a Bearer
 //! access token (+ refresh token, org/workspace scope); `GET /v1/cli/services`
 //! lists the services that token may use. This module is the client for that
-//! flow — a user exchanges their session and the resulting token plugs straight
-//! into the Cognitum Spaces client (`bearerAuth`), so the mesh uses Cognitum
-//! services under the user's own authenticated identity.
+//! flow. Its `cognitum-cli` token is intentionally distinct from the RuView PKCE
+//! access token required by Cognitum Spaces. Callers must not pass the exchange
+//! token to the Spaces client merely because both are Bearer credentials.
 //!
 //! Boundary (honest): the exchange completes a login the USER performs (browser
 //! sign-in bootstrap); this client sends the exchange request and consumes the
 //! token. It never mints tokens or holds user passwords — obtaining the session
 //! is the user's out-of-band sign-in.
 
-import { bearerAuth, type CognitumAuth, type FetchLike } from './cognitum-spaces.js';
+import { bearerAuth, type CognitumAuth, type CognitumFetchLike } from './cognitum-spaces.js';
 
 const DEFAULT_IDENTITY_BASE_URL = 'https://identity-186366152200.us-central1.run.app';
 
@@ -42,7 +42,7 @@ export interface CliSession {
 
 export interface CognitumIdentityConfig {
   baseUrl?: string;
-  fetchImpl?: FetchLike;
+  fetchImpl?: CognitumFetchLike;
 }
 
 export class CognitumIdentityClient {
@@ -51,8 +51,8 @@ export class CognitumIdentityClient {
     this.baseUrl = (cfg.baseUrl ?? DEFAULT_IDENTITY_BASE_URL).replace(/\/$/, '');
   }
 
-  private get fetchImpl(): FetchLike {
-    return this.cfg.fetchImpl ?? (globalThis.fetch as unknown as FetchLike);
+  private get fetchImpl(): CognitumFetchLike {
+    return this.cfg.fetchImpl ?? (globalThis.fetch as unknown as CognitumFetchLike);
   }
 
   /** Complete a user's CLI login → a Bearer session (POST /v1/cli/session/exchange). */
@@ -100,7 +100,11 @@ export class CognitumIdentityClient {
   }
 }
 
-/** Turn a completed session into a Cognitum auth for the Spaces/services clients. */
+/**
+ * Turn a CLI exchange session into auth for services that accept the
+ * `cognitum-cli` audience. Spaces does not: it requires a `ruview` PKCE token
+ * with `spaces:read`, so callers must not pass this auth to Spaces.
+ */
 export function sessionAuth(session: Pick<CliSession, 'accessToken'>): CognitumAuth {
   return bearerAuth(() => session.accessToken);
 }

@@ -107,18 +107,28 @@ canary **real traffic** through 1/10/50/100 % → inject a regression → **rest
 exact parent within 60 s** → **restart every controller** and **reconstruct the
 complete authorized state** with no manual edits.
 
+**One end-to-end test (`crates/runtime/tests/e2e_execution_loop.rs`,
+`full_verifiable_execution_loop`) now chains the whole criterion in a single
+narrative**: signed incident → candidate → two independent receipts over one
+hashed corpus → single-use token → canary 1/10/50/100 % under a promotion lock +
+durable ledger + mid-rollout checkpoint → a second incident's regression restores
+the exact parent within 60 s → restart (drop in-memory state, reopen only the
+durable ledger) reconstructs the authorized state and refuses a replay.
+
 Status against it after this ADR:
 - Two independent receipts over a hashed corpus — **enforced** (ADR-394 + P1 #4
   worst-case-across-judges fix: every pinned judge's receipt must pass).
 - Single-use promotion token — **enforced** (item 1, this ADR + tests).
+- Concurrent-promotion fencing — **built** (item 2 promotion lock).
 - Restart reconstruction (of the authorized-promotion state) — **built** (item 4
   ledger): reopening reconstructs the consumed-nonce set + promotion history and a
   replayed promotion is refused post-restart.
 - Mid-rollout crash-resume — **built** (item 4 `Checkpoint`): a crash partway
   through the canary resumes at its last durable stage rather than restarting.
 - Real-traffic canary + 60 s exact-parent restore against a real surface —
-  **pending item 2-remainder**; the in-memory adapter proves the state machine and
-  the timed rollback SLO, not real production traffic.
+  **pending item 2-remainder**; the in-memory adapter proves the state machine, the
+  staged 1/10/50/100 % walk, and the timed rollback SLO — not real production
+  traffic. The 60 s restore SLO is asserted against the reference adapter.
 
 ## Consequences
 

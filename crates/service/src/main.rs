@@ -21,10 +21,16 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use antibody::Detector;
 use constitution::Constitution;
-use envelope::{verify_promotion_artifact, CandidateManifest, EvaluationReceipt, ProofArtifact, PromotionEnvelope};
+use envelope::{
+    evaluate_and_sign, verify_promotion_artifact, CandidateManifest, EvaluationReceipt,
+    ProofArtifact, PromotionEnvelope,
+};
+use evaluator::Corpus;
 use promotion::{CanaryController, CanaryState, Decision};
 use serde::{Deserialize, Serialize};
+use witness::{content_hash, SigningAuthority};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -261,6 +267,177 @@ async fn promote(Json(req): Json<PromoteRequest>) -> Json<PromoteResponse> {
     }
 }
 
+// ---- Independent judges pipeline (ADR-392 §11 evaluator separation) ------
+// The judges ORIGINATE the signed evaluation receipts the promote path verifies.
+// Separation that matters: the *builder* (the Slack agent) never holds a judge
+// key — the autogenous service is the independent judge+verifier authority, and
+// promotion still re-verifies every receipt against the constitution's pinned
+// keys. Each judge is a distinct ed25519 identity; ≥2 are required.
+//
+// Keys come from env seeds (64-hex each): `AUTOGENOUS_JUDGE_SEEDS` (comma-
+// separated, ≥2) and `AUTOGENOUS_CONTROLLER_SEED`. Absent, deterministic DEV
+// keys are used and a warning is logged — production pins real, secret-managed
+// keys in the constitution. Physically separating judges onto distinct trust
+// domains is a later hardening; the verification boundary already holds here.
+
+fn seed_from_hex(s: &str) -> Option<[u8; 32]> {
+    let s = s.trim();
+    if s.len() != 64 {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for i in 0..32 {
+        out[i] = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()?;
+    }
+    Some(out)
+}
+
+fn judge_authorities() -> Vec<SigningAuthority> {
+    match std::env::var("AUTOGENOUS_JUDGE_SEEDS") {
+        Ok(v) => {
+            let auths: Vec<SigningAuthority> = v
+                .split(',')
+                .filter_map(seed_from_hex)
+                .enumerate()
+                .map(|(i, seed)| SigningAuthority::from_seed(&format!("judge-{}", i + 1), seed))
+                .collect();
+            if auths.len() >= 2 {
+                return auths;
+            }
+            tracing::warn!("AUTOGENOUS_JUDGE_SEEDS has <2 valid seeds; using DEV judge keys");
+            dev_judges()
+        }
+        Err(_) => {
+            tracing::warn!("AUTOGENOUS_JUDGE_SEEDS unset; using DEV judge keys (pin real keys in prod)");
+            dev_judges()
+        }
+    }
+}
+
+fn dev_judges() -> Vec<SigningAuthority> {
+    vec![
+        SigningAuthority::from_seed("judge-1", [1u8; 32]),
+        SigningAuthority::from_seed("judge-2", [2u8; 32]),
+    ]
+}
+
+fn controller_authority() -> SigningAuthority {
+    match std::env::var("AUTOGENOUS_CONTROLLER_SEED").ok().and_then(|s| seed_from_hex(&s)) {
+        Some(seed) => SigningAuthority::from_seed("controller", seed),
+        None => SigningAuthority::from_seed("controller", [3u8; 32]),
+    }
+}
+
+#[derive(Serialize)]
+struct JudgeKeys {
+    judges: Vec<String>,
+    controller: String,
+}
+
+/// Expose the service's judge + controller public keys, so a constitution can
+/// pin them (the pinned-key policy is externally governed, ADR-392 §4.1).
+async fn judges_keys() -> Json<JudgeKeys> {
+    Json(JudgeKeys {
+        judges: judge_authorities().iter().map(|a| a.public_hex()).collect(),
+        controller: controller_authority().public_hex(),
+    })
+}
+
+#[derive(Deserialize)]
+struct EvaluateRequest {
+    constitution: Constitution,
+    parent: Genome,
+    manifest: CandidateManifest,
+    candidate_detector: Detector,
+    parent_detector: Detector,
+    corpus: Corpus,
+    #[serde(default = "corpus_v1")]
+    corpus_id: String,
+    #[serde(default = "one_f64")]
+    p99_overhead_ms: f64,
+    nonce: String,
+    #[serde(default = "ttl_default")]
+    ttl_secs: u64,
+    now: u64,
+}
+fn corpus_v1() -> String {
+    "corpus-v1".into()
+}
+fn one_f64() -> f64 {
+    1.0
+}
+fn ttl_default() -> u64 {
+    600
+}
+
+#[derive(Serialize)]
+struct EvaluateResponse {
+    /// One signed receipt per judge (empty on refusal).
+    receipts: Vec<EvaluationReceipt>,
+    /// The controller-signed promotion envelope binding the receipts.
+    envelope: Option<PromotionEnvelope>,
+    /// Present on refusal (e.g. the service's keys aren't pinned).
+    error: Option<String>,
+}
+
+/// The judges evaluate the candidate vs the parent on the submitted corpus and
+/// EACH sign a receipt; the controller signs an envelope binding them. Refuses
+/// to sign under a constitution that does not pin the service's keys.
+async fn judges_evaluate(Json(req): Json<EvaluateRequest>) -> Json<EvaluateResponse> {
+    let judges = judge_authorities();
+    let controller = controller_authority();
+    // Refuse to originate evidence under a constitution that doesn't pin us —
+    // the key policy is constitutionally governed, not self-asserted.
+    let pinned = &req.constitution.pinned_keys;
+    if !judges.iter().all(|j| pinned.judges.contains(&j.public_hex()))
+        || !pinned.controllers.contains(&controller.public_hex())
+    {
+        return Json(EvaluateResponse {
+            receipts: vec![],
+            envelope: None,
+            error: Some(
+                "this service's judge/controller keys are not pinned in the submitted constitution".into(),
+            ),
+        });
+    }
+
+    let cand_hash = req.manifest.candidate_hash();
+    let parent_hash = content_hash(&req.parent.hash);
+    let mut idx = 0u8;
+    let receipts: Vec<EvaluationReceipt> = judges
+        .iter()
+        .map(|judge| {
+            idx += 1;
+            evaluate_and_sign(
+                judge,
+                &cand_hash,
+                &parent_hash,
+                &req.candidate_detector,
+                &req.parent_detector,
+                &req.corpus,
+                &req.corpus_id,
+                &format!("eval-{idx}"),
+                req.p99_overhead_ms,
+                req.now,
+            )
+        })
+        .collect();
+    let envelope = PromotionEnvelope::signed(
+        &controller,
+        &req.constitution.hash(),
+        &cand_hash,
+        &receipts,
+        &req.nonce,
+        req.now,
+        req.ttl_secs,
+    );
+    Json(EvaluateResponse {
+        receipts,
+        envelope: Some(envelope),
+        error: None,
+    })
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -276,6 +453,8 @@ async fn main() {
         .route("/v1/agl/fitness", post(agl_fitness))
         .route("/v1/canary/new", post(canary_new))
         .route("/v1/canary/observe", post(canary_observe))
+        .route("/v1/judges/keys", get(judges_keys))
+        .route("/v1/judges/evaluate", post(judges_evaluate))
         .route("/v1/promote", post(promote));
 
     let port: u16 = std::env::var("PORT")

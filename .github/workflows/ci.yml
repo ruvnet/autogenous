@@ -19,3 +19,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo install cargo-audit --locked || true
       - run: cargo audit
+  typescript:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/radio-moe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm pack --dry-run
+      - run: npm audit --omit=dev

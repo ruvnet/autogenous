@@ -25,7 +25,7 @@
 
 use agl_types::{Applicability, Authority, Mutation, MutationScope};
 use antibody::{Antibody, Containment, Detector, EvidenceReceipt, Trigger};
-use witness::{content_hash, SigningAuthority};
+use witness::SigningAuthority;
 
 /// A witnessed attack sample — the generator's ONLY input (no labels).
 #[derive(Clone, Debug)]
@@ -149,7 +149,6 @@ pub fn propose(
             signature: None,
         };
         let id = format!("aap:{}:{niche}", evidence.trace_id);
-        let subject = content_hash(&(&id, &detector));
         let mut aap = Antibody {
             id,
             issuer: authority.id.clone(),
@@ -175,7 +174,9 @@ pub fn propose(
             rollback_target: parent_genome_hash.to_string(),
             signature: None,
         };
-        aap.signature = Some(authority.seal(&subject).signature);
+        // Sign the WHOLE package (external review P1 #6), not just (id, detector):
+        // signing_hash() is content_hash over every field with signature cleared.
+        aap.signature = Some(authority.sign_hex(aap.signing_hash().as_bytes()));
         out.push(Candidate {
             niche,
             antibody: aap,

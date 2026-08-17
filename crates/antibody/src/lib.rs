@@ -177,6 +177,29 @@ impl Antibody {
         Ok(())
     }
 
+    /// Content hash of the COMPLETE package with the signature field cleared —
+    /// exactly what the issuer signs. External review P1 #6: because it covers
+    /// every field (evidence, containment, requested_authority, expires_at,
+    /// rollback_target, prohibited_effects, …), changing ANY of them changes this
+    /// hash and invalidates the signature.
+    pub fn signing_hash(&self) -> String {
+        let mut unsigned = self.clone();
+        unsigned.signature = None;
+        witness::content_hash(&unsigned)
+    }
+
+    /// Verify the signature was issued by `issuer_pubkey_hex` over the WHOLE
+    /// package (not just id+detector). A consumer MUST call this against a pinned
+    /// issuer before arming — `validate()`'s structural checks are not sufficient.
+    pub fn verify_signature(&self, issuer_pubkey_hex: &str) -> bool {
+        match &self.signature {
+            Some(sig) => {
+                witness::verify_hex(issuer_pubkey_hex, self.signing_hash().as_bytes(), sig)
+            }
+            None => false,
+        }
+    }
+
     /// Renewal (§8.4): extend expiry, citing fresh evidence. Returns a NEW
     /// antibody — packages are immutable once signed.
     pub fn renew(&self, fresh_evidence: EvidenceReceipt, new_expiry: u64) -> Antibody {
@@ -274,5 +297,53 @@ mod tests {
         assert_eq!(r.expires_at, 2_100_000_000);
         assert_eq!(r.evidence.len(), 2);
         assert_eq!(r.validate(2_050_000_000), Err(AntibodyError::Unsigned));
+    }
+
+    #[test]
+    fn full_package_signature_detects_tampering_of_any_field() {
+        use witness::SigningAuthority;
+        let issuer = SigningAuthority::from_seed("deployment-a", [7u8; 32]);
+        let mut ab = antibody();
+        ab.signature = Some(issuer.sign_hex(ab.signing_hash().as_bytes()));
+
+        // A correctly-signed full package verifies against the pinned issuer.
+        assert!(ab.verify_signature(&issuer.public_hex()));
+        // A different issuer key does not verify.
+        let other = SigningAuthority::from_seed("other", [9u8; 32]);
+        assert!(!ab.verify_signature(&other.public_hex()));
+
+        // Tampering ANY security-relevant field breaks the signature (P1 #6):
+        for tampered in [
+            {
+                let mut t = ab.clone();
+                t.expires_at += 1;
+                t
+            },
+            {
+                let mut t = ab.clone();
+                t.requested_authority = Authority::Governed;
+                t
+            },
+            {
+                let mut t = ab.clone();
+                t.rollback_target = "evil".into();
+                t
+            },
+            {
+                let mut t = ab.clone();
+                t.containment = Containment::Observe;
+                t
+            },
+            {
+                let mut t = ab.clone();
+                t.prohibited_effects.push("network".into());
+                t
+            },
+        ] {
+            assert!(
+                !tampered.verify_signature(&issuer.public_hex()),
+                "tampering a field must invalidate the full-package signature",
+            );
+        }
     }
 }

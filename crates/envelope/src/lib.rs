@@ -391,8 +391,12 @@ pub fn verify_promotion(
         rej.push(Reject::JudgesNotDistinct);
     }
 
-    // --- beats-parent + gates (finding #3, and gates on receipt numbers #2) ---
-    if let Some(r) = valid_receipts.first() {
+    // --- beats-parent + gates (finding #3, gates on receipt numbers #2) ---
+    // Worst-case across EVERY pinned judge (external review P1 #4): a second judge
+    // reporting a failing measurement MUST block promotion, so each valid receipt
+    // must independently clear beats-parent, non-inferiority, and the hard gates —
+    // one failing judge is enough to reject.
+    for r in &valid_receipts {
         let better = r.candidate_recall_lo > r.parent_recall || r.candidate_fp_hi < r.parent_fp;
         if !better {
             rej.push(Reject::NotBetterThanParent);

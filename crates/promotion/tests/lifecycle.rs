@@ -6,9 +6,25 @@
 use agl_types::*;
 use antibody::{Antibody, Containment, Detector, EvidenceReceipt, Trigger};
 use constitution::Constitution;
+use envelope::VerifiedPromotion;
 use evaluator::{replay, Corpus};
 use promotion::{CanaryController, CanaryState, Decision};
 use verifier::verify;
+
+/// A verified promotion bound to `cand`/`rt`, expiring far in the future.
+fn promo(cand: &str, rt: &str, nonce: &str) -> VerifiedPromotion {
+    VerifiedPromotion::new_for_test(
+        cand.into(),
+        "parent".into(),
+        "corpus".into(),
+        vec!["r1".into(), "r2".into()],
+        "const".into(),
+        "ctrl".into(),
+        nonce.into(),
+        u64::MAX,
+        rt.into(),
+    )
+}
 
 fn constitution_doc() -> Constitution {
     Constitution {
@@ -133,7 +149,9 @@ fn novel_attack_becomes_signed_deployed_defense() {
         }
     }
     assert!(ready);
-    canary.promote("ed25519:release-a").unwrap();
+    canary
+        .promote(&promo(&aap.id, &aap.rollback_target, "n-e2e"), 0)
+        .unwrap();
     assert!(matches!(canary.state, CanaryState::Promoted { .. }));
 }
 
@@ -183,7 +201,9 @@ fn injected_regression_triggers_automatic_rollback_mid_canary() {
         }
     ));
     assert!(
-        canary.promote("sig").is_err(),
+        canary
+            .promote(&promo("aap-e2e", "genome-parent", "n"), 0)
+            .is_err(),
         "rolled-back candidate must never promote"
     );
 }

@@ -16,5 +16,11 @@ witness = { path = "../witness" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+[features]
+# Exposes `VerifiedPromotion::new_for_test` so downstream crates can unit-test
+# promotion binding/replay without a full verification pipeline. OFF in
+# production builds, so only `verify_promotion_artifact` can mint the artifact.
+test-util = []
+
 [dev-dependencies]
 serde_json = { workspace = true }

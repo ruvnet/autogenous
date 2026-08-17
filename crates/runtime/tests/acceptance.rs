@@ -145,8 +145,7 @@ fn unseen_attack_becomes_a_signed_independently_evaluated_defense() {
     adapter.register(&chosen.antibody.id, Health::Healthy);
     adapter.deploy(&chosen.antibody.id).unwrap();
     let canary = rt.run_canary(
-        &chosen.antibody.id,
-        &chosen.antibody.rollback_target,
+        &chosen.promotion,
         &clock,
         &mut adapter,
         |_| good(),
@@ -174,8 +173,7 @@ fn injected_regression_restores_parent_within_slo() {
     adapter.deploy(&chosen.antibody.id).unwrap();
     let mut n = 0u32;
     let canary = rt.run_canary(
-        &chosen.antibody.id,
-        &chosen.antibody.rollback_target,
+        &chosen.promotion,
         &clock,
         &mut adapter,
         |c| {

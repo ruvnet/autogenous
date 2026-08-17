@@ -301,6 +301,137 @@ pub enum Reject {
     Inadmissible(String),
 }
 
+/// A promotion that **passed** verification. Opaque by construction: the only way
+/// to obtain one is [`verify_promotion_artifact`] returning `Ok` — there is no
+/// public constructor, so possession of a `VerifiedPromotion` is proof the bound
+/// candidate cleared every gate. It carries the exact identities the deployment
+/// layer must re-check before actuating, so "what was verified" and "what is
+/// promoted" cannot drift apart (ADR-403 item 1 / review P1 #3).
+#[derive(Clone, Debug)]
+pub struct VerifiedPromotion {
+    candidate_hash: String,
+    parent_hash: String,
+    corpus_id: String,
+    receipt_hashes: Vec<String>,
+    constitution_hash: String,
+    controller_pubkey: String,
+    nonce: String,
+    expires_at: u64,
+    rollback_target: String,
+}
+
+impl VerifiedPromotion {
+    pub fn candidate_hash(&self) -> &str {
+        &self.candidate_hash
+    }
+    pub fn parent_hash(&self) -> &str {
+        &self.parent_hash
+    }
+    pub fn corpus_id(&self) -> &str {
+        &self.corpus_id
+    }
+    pub fn receipt_hashes(&self) -> &[String] {
+        &self.receipt_hashes
+    }
+    pub fn constitution_hash(&self) -> &str {
+        &self.constitution_hash
+    }
+    pub fn controller_pubkey(&self) -> &str {
+        &self.controller_pubkey
+    }
+    pub fn nonce(&self) -> &str {
+        &self.nonce
+    }
+    pub fn expires_at(&self) -> u64 {
+        self.expires_at
+    }
+    pub fn rollback_target(&self) -> &str {
+        &self.rollback_target
+    }
+
+    /// Test-only constructor (feature `test-util`). Lets downstream crates
+    /// exercise promotion binding/replay logic without standing up a full
+    /// verification pipeline. Not compiled into production builds — the only
+    /// production path to a `VerifiedPromotion` is [`verify_promotion_artifact`].
+    #[cfg(feature = "test-util")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_for_test(
+        candidate_hash: String,
+        parent_hash: String,
+        corpus_id: String,
+        receipt_hashes: Vec<String>,
+        constitution_hash: String,
+        controller_pubkey: String,
+        nonce: String,
+        expires_at: u64,
+        rollback_target: String,
+    ) -> Self {
+        VerifiedPromotion {
+            candidate_hash,
+            parent_hash,
+            corpus_id,
+            receipt_hashes,
+            constitution_hash,
+            controller_pubkey,
+            nonce,
+            expires_at,
+            rollback_target,
+        }
+    }
+}
+
+/// The single-use, binding promotion artifact (ADR-403 item 1). Runs the full
+/// [`verify_promotion`] engine and, **only** if it returns zero rejections,
+/// materializes a [`VerifiedPromotion`] bound to this exact
+/// candidate/parent/corpus/policy/controller. Any rejection is returned verbatim
+/// so callers keep the detailed failure list.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_promotion_artifact(
+    constitution: &Constitution,
+    parent: &Genome,
+    manifest: &CandidateManifest,
+    receipts: &[EvaluationReceipt],
+    envelope: &PromotionEnvelope,
+    proof_artifacts: &[ProofArtifact],
+    now: u64,
+) -> Result<VerifiedPromotion, Vec<Reject>> {
+    let rej = verify_promotion(
+        constitution,
+        parent,
+        manifest,
+        receipts,
+        envelope,
+        proof_artifacts,
+        now,
+    );
+    if !rej.is_empty() {
+        return Err(rej);
+    }
+    // verify_promotion has already established corpus consistency across receipts
+    // and that receipt_hashes/candidate/parent all match; we bind the canonical
+    // values here so the deployment layer re-checks against them.
+    let corpus_id = receipts
+        .first()
+        .map(|r| r.corpus_id.clone())
+        .unwrap_or_default();
+    let rollback_target = manifest
+        .mutation
+        .rollback_target
+        .clone()
+        .unwrap_or_default();
+    Ok(VerifiedPromotion {
+        candidate_hash: manifest.candidate_hash(),
+        parent_hash: content_hash(&parent.hash),
+        corpus_id,
+        receipt_hashes: envelope.receipt_hashes.clone(),
+        constitution_hash: envelope.constitution_hash.clone(),
+        controller_pubkey: envelope.controller_pubkey.clone(),
+        nonce: envelope.nonce.clone(),
+        expires_at: envelope.expires_at,
+        rollback_target,
+    })
+}
+
 /// The closed check. Returns **every** violation; an empty vec means the
 /// candidate is cryptographically admissible and promotable.
 #[allow(clippy::too_many_lines, clippy::too_many_arguments)]

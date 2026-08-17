@@ -23,6 +23,7 @@ dependencies = [
  "agl-types",
  "serde",
  "serde_json",
+ "witness",
 ]
 
 [[package]]
@@ -392,6 +393,7 @@ dependencies = [
  "agl-types",
  "antibody",
  "constitution",
+ "envelope",
  "evaluator",
  "serde",
  "serde_json",

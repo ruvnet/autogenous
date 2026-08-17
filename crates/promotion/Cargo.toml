@@ -9,6 +9,7 @@ description = "Autogenous promotion controller: staged canary (1-10-50-100%), si
 
 [dependencies]
 agl-types = { path = "../agl-types" }
+envelope = { path = "../envelope" }
 serde = { workspace = true }
 
 [dev-dependencies]
@@ -18,3 +19,4 @@ verifier = { path = "../verifier" }
 antibody = { path = "../antibody" }
 evaluator = { path = "../evaluator" }
 witness = { path = "../witness" }
+envelope = { path = "../envelope", features = ["test-util"] }

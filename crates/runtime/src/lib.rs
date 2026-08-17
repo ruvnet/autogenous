@@ -17,8 +17,8 @@ use constitution::Constitution;
 use deployment::verified_rollback;
 pub use deployment::{DeploymentAdapter, Health, InMemoryAdapter, RollbackReceipt};
 use envelope::{
-    evaluate_and_sign, verify_promotion, CandidateManifest, EvaluationReceipt, InvariantProof,
-    PromotionEnvelope, ProofArtifact,
+    evaluate_and_sign, verify_promotion_artifact, CandidateManifest, EvaluationReceipt,
+    InvariantProof, PromotionEnvelope, ProofArtifact, VerifiedPromotion,
 };
 use evaluator::Corpus;
 use generator::{propose, AttackEvidence, GeneratorConfig};
@@ -87,6 +87,10 @@ pub struct ScoredCandidate {
     pub fp: f64,
     pub envelope: PromotionEnvelope,
     pub receipts: Vec<EvaluationReceipt>,
+    /// The single-use, binding promotion artifact minted from successful
+    /// verification (ADR-403 item 1). `run_canary` consumes exactly this to
+    /// finalize the rollout — nothing else can promote the candidate.
+    pub promotion: VerifiedPromotion,
 }
 
 /// The outcome of responding to one attack.
@@ -272,7 +276,10 @@ impl Runtime {
                 600,
             );
 
-            let rejects = verify_promotion(
+            // The closed check now MINTS the single-use promotion artifact on
+            // success (ADR-403 item 1). If verification rejects, there is no
+            // artifact and therefore no way to promote this candidate.
+            let promotion = match verify_promotion_artifact(
                 &self.constitution,
                 &self.parent,
                 &manifest,
@@ -280,10 +287,10 @@ impl Runtime {
                 &env,
                 &proof_artifacts,
                 now,
-            );
-            if !rejects.is_empty() {
-                continue; // not cryptographically admissible — no lineage, no promotion
-            }
+            ) {
+                Ok(vp) => vp,
+                Err(_) => continue, // not cryptographically admissible — no lineage, no promotion
+            };
             promotable += 1;
 
             // Signed lineage: mutation ← genome, antibody ← mutation.
@@ -322,6 +329,7 @@ impl Runtime {
                     fp,
                     envelope: env,
                     receipts,
+                    promotion,
                 });
             }
         }
@@ -342,8 +350,7 @@ impl Runtime {
     #[allow(clippy::too_many_arguments)]
     pub fn run_canary<C: Clock, F: FnMut(&C) -> FitnessVector, A: DeploymentAdapter>(
         &self,
-        candidate_id: &str,
-        rollback_target: &str,
+        promotion: &VerifiedPromotion,
         clock: &C,
         adapter: &mut A,
         mut next_fitness: F,
@@ -351,6 +358,10 @@ impl Runtime {
         max_samples: usize,
         slos: Slos,
     ) -> CanaryOutcome {
+        // The controller's identity is bound to the verified artifact: it can
+        // only finalize by consuming exactly this promotion (ADR-403 item 1).
+        let candidate_id = promotion.candidate_hash();
+        let rollback_target = promotion.rollback_target();
         let mut ctrl = CanaryController::new(
             candidate_id,
             rollback_target,
@@ -391,10 +402,7 @@ impl Runtime {
                     break;
                 }
                 Decision::ReadyForPromotion => {
-                    if ctrl
-                        .promote(&self.controller.sign_hex(candidate_id.as_bytes()))
-                        .is_ok()
-                    {
+                    if ctrl.promote(promotion, clock.now_secs()).is_ok() {
                         promoted = true;
                     }
                     break;
@@ -431,10 +439,13 @@ mod system_clock_tests {
     // fixed 1_800_000_000 (Jan 2027) base plus process uptime.
     #[test]
     fn system_clock_is_unix_wall_time_not_a_fixed_epoch() {
-        let c = SystemClock::default();
+        let c = SystemClock;
         let secs = c.now_secs();
         assert!(secs > 1_750_000_000, "now_secs {secs} is implausibly early");
-        assert!(secs < 2_050_000_000, "now_secs {secs} is implausibly late (fixed-epoch bug?)");
+        assert!(
+            secs < 2_050_000_000,
+            "now_secs {secs} is implausibly late (fixed-epoch bug?)"
+        );
         let millis = c.now_millis();
         assert!(
             (millis / 1000).abs_diff(u128::from(secs)) <= 1,

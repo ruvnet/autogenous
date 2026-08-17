@@ -21,6 +21,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use promotion::{CanaryController, Decision};
 use serde::{Deserialize, Serialize};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -119,6 +120,72 @@ async fn agl_fitness(Json(req): Json<FitnessRequest>) -> Json<FitnessResponse> {
     })
 }
 
+// ---- Canary automation (ADR-392 §6.1 staged rollout) --------------------
+// Stateless: the caller threads the `CanaryController` (it is Serialize), so the
+// service stays a pure transform, is durable across restarts, and scales to
+// zero. `new` starts a rollout at 1%; each `observe` feeds one fitness
+// measurement and returns the deterministic decision — advance 1→10→50→100,
+// hold, ready-for-promotion, or automatic rollback on a hard-gate violation.
+
+#[derive(Deserialize)]
+struct CanaryNewRequest {
+    candidate_id: String,
+    rollback_target: String,
+    /// Healthy observations required per stage before advancing (min 1).
+    #[serde(default = "one")]
+    observations_per_stage: u32,
+    #[serde(default)]
+    gates: Option<HardGates>,
+}
+fn one() -> u32 {
+    1
+}
+
+#[derive(Serialize)]
+struct CanaryStateResponse {
+    controller: CanaryController,
+    stage_pct: Option<u8>,
+}
+
+/// Start a canary rollout for a candidate.
+async fn canary_new(Json(req): Json<CanaryNewRequest>) -> Json<CanaryStateResponse> {
+    let controller = CanaryController::new(
+        &req.candidate_id,
+        &req.rollback_target,
+        req.gates.unwrap_or_default(),
+        req.observations_per_stage,
+    );
+    let stage_pct = controller.stage_pct();
+    Json(CanaryStateResponse {
+        controller,
+        stage_pct,
+    })
+}
+
+#[derive(Deserialize)]
+struct CanaryObserveRequest {
+    controller: CanaryController,
+    fitness: FitnessVector,
+}
+
+#[derive(Serialize)]
+struct CanaryObserveResponse {
+    controller: CanaryController,
+    decision: Decision,
+    stage_pct: Option<u8>,
+}
+
+/// Feed one fitness measurement; get the next canary decision (deterministic).
+async fn canary_observe(Json(mut req): Json<CanaryObserveRequest>) -> Json<CanaryObserveResponse> {
+    let decision = req.controller.observe(&req.fitness);
+    let stage_pct = req.controller.stage_pct();
+    Json(CanaryObserveResponse {
+        controller: req.controller,
+        decision,
+        stage_pct,
+    })
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -131,7 +198,9 @@ async fn main() {
         .route("/health", get(health))
         .route("/status", get(health))
         .route("/v1/agl/admit", post(agl_admit))
-        .route("/v1/agl/fitness", post(agl_fitness));
+        .route("/v1/agl/fitness", post(agl_fitness))
+        .route("/v1/canary/new", post(canary_new))
+        .route("/v1/canary/observe", post(canary_observe));
 
     let port: u16 = std::env::var("PORT")
         .ok()

@@ -17,6 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 agl-types = { path = "../agl-types" }
+promotion = { path = "../promotion" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 axum = "0.7"

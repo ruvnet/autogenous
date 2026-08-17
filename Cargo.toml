@@ -15,6 +15,7 @@ members = [
   "crates/runtime",
   "crates/envelope",
   "crates/deployment",
+  "crates/ledger",
 ]
 
 [workspace.package]

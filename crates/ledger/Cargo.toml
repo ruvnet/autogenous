@@ -1,0 +1,16 @@
+[package]
+name = "ledger"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Autogenous durable promotion ledger: an append-only, fsync'd, hash-chained log of consumed promotion nonces + promoted candidates (ADR-403 item 4). Gives cross-restart replay protection and reconstructs the authorized state without manual edits."
+
+[dependencies]
+witness = { path = "../witness" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

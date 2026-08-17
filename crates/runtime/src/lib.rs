@@ -22,6 +22,7 @@ use envelope::{
 };
 use evaluator::Corpus;
 use generator::{propose, AttackEvidence, GeneratorConfig};
+use ledger::{PromotionLedger, PromotionRecord};
 use lineage::{LineageGraph, Node, NodeKind};
 use promotion::{CanaryController, Decision};
 use witness::{content_hash, SigningAuthority};
@@ -357,6 +358,11 @@ impl Runtime {
         observations_per_stage: u32,
         max_samples: usize,
         slos: Slos,
+        // Optional durable promotion ledger (ADR-403 item 4). When present, a
+        // nonce already committed here is refused BEFORE promoting — durable,
+        // cross-restart, cross-controller replay protection — and a fresh
+        // promotion is recorded (fsync'd) so it survives a restart.
+        mut ledger: Option<&mut PromotionLedger>,
     ) -> CanaryOutcome {
         // The controller's identity is bound to the verified artifact: it can
         // only finalize by consuming exactly this promotion (ADR-403 item 1).
@@ -402,8 +408,27 @@ impl Runtime {
                     break;
                 }
                 Decision::ReadyForPromotion => {
-                    if ctrl.promote(promotion, clock.now_secs()).is_ok() {
+                    // Durable replay guard: a nonce already committed to the
+                    // ledger is refused even by a fresh controller after a restart.
+                    let already = ledger
+                        .as_ref()
+                        .map(|l| l.contains_nonce(promotion.nonce()))
+                        .unwrap_or(false);
+                    if !already && ctrl.promote(promotion, clock.now_secs()).is_ok() {
                         promoted = true;
+                        if let Some(l) = ledger.as_mut() {
+                            let _ = l.record_promotion(
+                                &self.controller,
+                                PromotionRecord {
+                                    candidate_hash: promotion.candidate_hash().into(),
+                                    parent_hash: promotion.parent_hash().into(),
+                                    corpus_id: promotion.corpus_id().into(),
+                                    nonce: promotion.nonce().into(),
+                                    controller_pubkey: promotion.controller_pubkey().into(),
+                                },
+                                clock.now_secs(),
+                            );
+                        }
                     }
                     break;
                 }

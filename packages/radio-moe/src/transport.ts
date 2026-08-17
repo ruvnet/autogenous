@@ -79,6 +79,77 @@ export function verifySealed(sealed: SignedWire): boolean {
   }
 }
 
+/**
+ * The set of peers ADMITTED to a mesh (external review P1 #5). `verifySealed`
+ * proves a frame's sender possesses the private key for the embedded public key
+ * — but **possession is not admission**: anyone can generate a keypair and seal
+ * well-formed frames. This registry is the allowlist of peers admitted
+ * out-of-band (or by a governed process); a frame from a validly-signed but
+ * UN-admitted peer is rejected, exactly like a bad signature. It binds
+ * `peerId -> the exact admitted public key`, so an admitted peerId cannot be
+ * impersonated by presenting a different key.
+ *
+ * This is the transport analogue of the outcome-verifier's `trustedVerifiers`
+ * gate: a valid signature answers "who signed this?", not "may they participate?".
+ */
+export class AdmittedPeerRegistry {
+  private readonly byId = new Map<string, string>(); // peerId -> publicKeyDer (hex)
+
+  /**
+   * Admit a peer by its id + DER SPKI public key (hex). Throws if the key's
+   * fingerprint does not match the peerId — such an entry could never match a
+   * validly-sealed frame (whose peerId must equal its key's fingerprint), so
+   * admitting it is a caller error, not a silent no-op.
+   */
+  admit(peerId: string, publicKeyDerHex: string): void {
+    const fingerprint = createHash('sha256')
+      .update(Buffer.from(publicKeyDerHex, 'hex'))
+      .digest('hex')
+      .slice(0, 16);
+    if (fingerprint !== peerId) {
+      throw new Error(
+        `refusing to admit peer ${peerId}: its public key fingerprints to ${fingerprint}`,
+      );
+    }
+    this.byId.set(peerId, publicKeyDerHex);
+  }
+
+  /** Admit a known identity directly (its id + public key are self-consistent). */
+  admitIdentity(identity: PeerIdentity): void {
+    this.admit(identity.peerId, identity.publicKeyDer.toString('hex'));
+  }
+
+  /** Remove a peer's admission (e.g. on revocation). Idempotent. */
+  revoke(peerId: string): void {
+    this.byId.delete(peerId);
+  }
+
+  /** Is `(peerId, key)` an admitted pair? Requires the EXACT admitted key. */
+  isAdmitted(peerId: string, publicKeyDerHex: string): boolean {
+    const known = this.byId.get(peerId);
+    return known !== undefined && known === publicKeyDerHex;
+  }
+
+  admittedIds(): string[] {
+    return [...this.byId.keys()];
+  }
+
+  get size(): number {
+    return this.byId.size;
+  }
+}
+
+/**
+ * Admission-gated verification (P1 #5): a frame is accepted only if it is
+ * validly sealed AND comes from an ADMITTED peer presenting its admitted key.
+ * Possession alone is not enough. Use this at the receive boundary in place of
+ * bare `verifySealed` whenever the mesh is not open-membership.
+ */
+export function verifyAdmitted(sealed: SignedWire, admissions: AdmittedPeerRegistry): boolean {
+  if (!verifySealed(sealed)) return false;
+  return admissions.isAdmitted(sealed.peerId, sealed.publicKeyDer);
+}
+
 export type WireHandler = (sealed: SignedWire) => void;
 
 /** The transport seam. Implementations carry SIGNED frames between peers. */

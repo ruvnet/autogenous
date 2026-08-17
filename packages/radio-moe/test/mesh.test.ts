@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Fabric, InMemorySignedTransport, PeerIdentity } from '../src/transport.js';
+import {
+  Fabric,
+  InMemorySignedTransport,
+  PeerIdentity,
+  AdmittedPeerRegistry,
+} from '../src/transport.js';
 import type { DataTransport, SignedWire } from '../src/transport.js';
 import { Peer } from '../src/mesh.js';
 import { LogitExpert, TextExpert } from '../src/expert.js';
@@ -46,6 +51,46 @@ test('logit experts across peers are routed, dispatched, and truly mixed', () =>
   }
   // A learned the remote experts over the signed advert wire.
   assert.ok(a.gate.known().some((x) => x.expertId === 'e1' && x.peerId === b.peerId));
+});
+
+test('a peer with an admission allowlist learns only admitted peers (P1 #5)', () => {
+  const fabric = new Fabric();
+  const admittedId = PeerIdentity.generate();
+  const strangerId = PeerIdentity.generate(); // valid keypair, never admitted
+  const receiverId = PeerIdentity.generate();
+
+  const reg = new AdmittedPeerRegistry();
+  reg.admitIdentity(admittedId);
+  // Only the receiver enforces admission; the other two just broadcast adverts.
+  const receiver = new Peer(
+    receiverId,
+    new InMemorySignedTransport(receiverId, fabric),
+    { topK: 2, tau: 0.4 },
+    reg,
+  );
+  const admitted = new Peer(admittedId, new InMemorySignedTransport(admittedId, fabric), {
+    topK: 2,
+    tau: 0.4,
+  });
+  const stranger = new Peer(strangerId, new InMemorySignedTransport(strangerId, fabric), {
+    topK: 2,
+    tau: 0.4,
+  });
+
+  admitted.host(new LogitExpert('e-admitted', oneHot(0, 1), VOCAB, SIZE, () => oneHot(0)));
+  stranger.host(new LogitExpert('e-stranger', oneHot(1, 1), VOCAB, SIZE, () => oneHot(1)));
+
+  const known = receiver.gate.known();
+  assert.ok(
+    known.some((x) => x.expertId === 'e-admitted' && x.peerId === admittedId.peerId),
+    'admitted peer is learned',
+  );
+  assert.ok(
+    !known.some((x) => x.expertId === 'e-stranger'),
+    'a validly-signed but UN-admitted peer is dropped, never learned',
+  );
+  // Ensure `receiver` is used (its transport is the enforcement point).
+  assert.equal(receiver.peerId, receiverId.peerId);
 });
 
 test('heterogeneous text experts race (ensemble), highest gate weight wins', () => {

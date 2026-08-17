@@ -19,6 +19,8 @@ import { mixLogits, raceTextExperts, type MixedPosition, type RaceOutcome } from
 import {
   seal,
   verifySealed,
+  verifyAdmitted,
+  type AdmittedPeerRegistry,
   type DataTransport,
   type PeerIdentity,
   type SignedWire,
@@ -67,6 +69,13 @@ export class Peer {
     readonly identity: PeerIdentity,
     private readonly transport: DataTransport,
     gateCfg: Partial<GateConfig> = {},
+    /**
+     * Optional admitted-peer allowlist (P1 #5). When provided, an inbound frame
+     * must come from an ADMITTED peer, not merely a validly-signed one — a
+     * well-formed frame from an un-admitted peer is dropped like a bad signature.
+     * Omit for an open-membership mesh (verification stays possession-only).
+     */
+    private readonly admissions?: AdmittedPeerRegistry,
   ) {
     if (identity.peerId !== transport.peerId) {
       throw new Error(
@@ -106,7 +115,12 @@ export class Peer {
   }
 
   private onWire(sealed: SignedWire): void {
-    if (!verifySealed(sealed)) {
+    // Possession-only (open mesh) unless an admission allowlist is configured, in
+    // which case a validly-signed but UN-admitted peer is rejected too (P1 #5).
+    const accepted = this.admissions
+      ? verifyAdmitted(sealed, this.admissions)
+      : verifySealed(sealed);
+    if (!accepted) {
       // Untrusted: we may still read the claimed chunkId to attribute the drop,
       // but we NEVER apply the payload.
       const w = sealed.wire as Partial<ExpertFrame>;

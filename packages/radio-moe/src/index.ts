@@ -25,6 +25,8 @@ export {
   InMemorySignedTransport,
   seal,
   verifySealed,
+  verifyAdmitted,
+  AdmittedPeerRegistry,
   wireBytes,
   type DataTransport,
   type SignedWire,

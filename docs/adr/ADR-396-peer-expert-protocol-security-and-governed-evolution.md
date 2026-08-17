@@ -56,6 +56,17 @@ cost, latency, quality, trust, and concurrency fields pass structural bounds.
 Remote announcements may request *evaluation* but never enter the active registry
 directly.
 
+**Implementation status (2026-08-16, external review P1 #5).** The peer-admission
+layer is now enforced at the transport boundary: `radio-moe`'s
+`AdmittedPeerRegistry` + `verifyAdmitted` gate the receive path so that a validly
+*sealed* frame (proving key possession) from an **un-admitted** peer is dropped
+exactly like a bad signature — closing the "possession ≠ admission" gap the review
+raised. A `Peer` constructed with an admissions allowlist learns/serves only
+admitted peers; without one it stays open-membership (possession-only), unchanged.
+This is peer-level admission; the full **manifest-level** admission above
+(verifier-signed admission receipts binding a manifest hash) remains the design
+target and is not yet implemented.
+
 ### Evolvable vs non-evolvable
 
 Autogenous **may** propose changes to: ranking weights within constitutionally

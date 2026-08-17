@@ -130,6 +130,18 @@ Status against it after this ADR:
   staged 1/10/50/100 % walk, and the timed rollback SLO — not real production
   traffic. The 60 s restore SLO is asserted against the reference adapter.
 
+## Unified entry point
+
+`Runtime::run_canary_full(lock, checkpoint_path, promotion, …, ledger)` is the
+single **supported** promotion path: it composes all three protections at once —
+the per-target promotion lock (item 2), the durable ledger (item 4 replay + signed
+authorized-state record), and the mid-rollout checkpoint (item 4 resume). It
+returns a `GuardedCanary` (`fenced` if the target is busy, else the outcome). The
+à-la-carte `run_canary{,_guarded,_checkpointed}` variants remain for tests and for
+callers that deliberately want a subset; `CanaryController::promote` is the
+low-level primitive beneath them (the durable + fenced guarantees live at the
+runtime layer, which holds the controller signing authority).
+
 ## Consequences
 
 - **Positive**: the verified→promoted link is now cryptographic and single-use — a

@@ -595,6 +595,61 @@ impl Runtime {
             outcome: Some(outcome),
         }
     }
+
+    /// The **fully-guarded** promotion path (ADR-403): the single supported entry
+    /// point that composes all three protections at once —
+    /// - a per-target promotion **lock** (item 2, fences a concurrent rollout to
+    ///   the same parent — returns `fenced` without running if held),
+    /// - a durable promotion **ledger** (item 4, cross-restart replay protection +
+    ///   the signed authorized-state record), and
+    /// - a mid-rollout **checkpoint** (item 4, resume from the last durable stage
+    ///   after a crash instead of restarting).
+    ///
+    /// Prefer this over the à-la-carte `run_canary{,_guarded,_checkpointed}`
+    /// variants in production: those exist for tests and for callers that
+    /// deliberately want a subset. Any callable `promote` bypass is a lower-level
+    /// primitive — the durable + fenced guarantees live here, at the layer that
+    /// holds the controller signing authority.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run_canary_full<C: Clock, F: FnMut(&C) -> FitnessVector, A: DeploymentAdapter>(
+        &self,
+        lock: &PromotionLockRegistry,
+        checkpoint_path: &Path,
+        promotion: &VerifiedPromotion,
+        clock: &C,
+        adapter: &mut A,
+        next_fitness: F,
+        observations_per_stage: u32,
+        max_samples: usize,
+        slos: Slos,
+        ledger: Option<&mut PromotionLedger>,
+    ) -> GuardedCanary {
+        let _guard: PromotionGuard = match lock.acquire(promotion.rollback_target()) {
+            Some(g) => g,
+            None => {
+                return GuardedCanary {
+                    fenced: true,
+                    outcome: None,
+                }
+            }
+        };
+        // Held the lock for the whole rollout; checkpointed + ledger-guarded inside.
+        let outcome = self.run_canary_checkpointed(
+            checkpoint_path,
+            promotion,
+            clock,
+            adapter,
+            next_fitness,
+            observations_per_stage,
+            max_samples,
+            slos,
+            ledger,
+        );
+        GuardedCanary {
+            fenced: false,
+            outcome: Some(outcome),
+        }
+    }
 }
 
 #[cfg(test)]

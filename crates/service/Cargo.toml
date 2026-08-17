@@ -1,0 +1,25 @@
+# autogenous-service — an HTTP surface over the Autogenous control-plane crates,
+# so the AGL admission contract (and, later, signed promotion) is reachable as a
+# deployed service (Cloud Run) rather than an offline library. Mirrors the
+# HarnessaaS / metaharness-agent deployment family.
+[package]
+name = "autogenous-service"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "HTTP service exposing the Autogenous AGL admission contract (ADR-392 §6) and fitness hard-gate (§10) as an OpenAI-family-style /v1 API for governed agent mutations."
+
+[[bin]]
+name = "autogenous-service"
+path = "src/main.rs"
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

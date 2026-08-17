@@ -16,6 +16,7 @@ members = [
   "crates/envelope",
   "crates/deployment",
   "crates/ledger",
+  "crates/service",
 ]
 
 [workspace.package]

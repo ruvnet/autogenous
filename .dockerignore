@@ -1,0 +1,5 @@
+target/
+.git/
+packages/*/node_modules/
+**/node_modules/
+*.log

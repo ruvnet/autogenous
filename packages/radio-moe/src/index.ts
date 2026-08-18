@@ -254,8 +254,9 @@ export {
 export { TlsPeerNode, tlsSendEnvelope, TlsConnection } from './tls-transport.js';
 
 // Cognitum Spaces adapter (ADR-402): connect the mesh to the DEPLOYED Cognitum
-// Spaces service (cog_-key/Bearer authed); map a Spaces Envelope → an Observation
-// so real spatial state flows through admitObservation.
+// Spaces gateway route (compatibility cog_ key or RuView PKCE `spaces:read`
+// access token); map a Spaces Envelope → a derived Observation so spatial state
+// flows through fail-closed admission without becoming independent authority.
 export {
   CognitumSpacesClient,
   spacesEnvelopeToObservation,
@@ -269,12 +270,12 @@ export {
   type CognitumSpacesEnvelope,
   type SpacesBoundary,
   type SpacesListResult,
-  type FetchLike as CognitumFetchLike,
+  type CognitumFetchLike,
 } from './cognitum-spaces.js';
 
-// Cognitum identity OAuth (ADR-093): a user completes the CLI session exchange and
-// the resulting Bearer token plugs into the Spaces/services clients — the mesh uses
-// Cognitum services under the user's own authenticated identity.
+// Cognitum identity CLI session exchange (ADR-093). Its `cognitum-cli` token is
+// for services that explicitly accept that audience; Spaces requires a separate
+// RuView PKCE token with `spaces:read`.
 export {
   CognitumIdentityClient,
   sessionAuth,

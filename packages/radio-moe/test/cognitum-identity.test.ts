@@ -8,7 +8,6 @@ import {
   CognitumIdentityClient,
   sessionAuth,
   sessionActive,
-  CognitumSpacesClient,
   type CognitumFetchLike,
 } from '../src/index.js';
 
@@ -54,15 +53,9 @@ test('a session becomes a Cognitum auth that carries the Bearer token', async ()
   const auth = sessionAuth(session);
   assert.deepEqual(auth(), { authorization: 'Bearer acc_live_123' });
 
-  // and it drives the Spaces client end to end (injected fetch checks the header)
-  let sawAuth = '';
-  const spacesFetch: CognitumFetchLike = async (_u, init) => {
-    sawAuth = init.headers.authorization ?? '';
-    return { ok: true, status: 200, json: async () => ({ object: 'list', data: [] }), text: async () => '' };
-  };
-  const spaces = new CognitumSpacesClient({ auth, fetchImpl: spacesFetch });
-  await spaces.listSpaces();
-  assert.equal(sawAuth, 'Bearer acc_live_123');
+  // This token is client_id=cognitum-cli. It is intentionally NOT exercised
+  // against Spaces, whose resource policy requires aud/client_id=ruview and
+  // spaces:read from the PKCE activation flow.
 });
 
 test('sessionActive respects expiry', () => {

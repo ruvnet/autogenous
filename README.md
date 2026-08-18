@@ -129,7 +129,7 @@ This is a **research prototype** of the control-plane contract — typed, tested
 
 ## Related
 
-[`ruvnet/midstream`](https://github.com/ruvnet/midstream) · [`ruvnet/metaharness`](https://github.com/ruvnet/metaharness) · [`ruvnet/llm-stream-reformat`](https://github.com/ruvnet/llm-stream-reformat) · [`ruvnet/ai-text-watermark`](https://github.com/ruvnet/ai-text-watermark)
+[`ruvnet/midstream`](https://github.com/ruvnet/midstream) · [`ruvnet/metaharness`](https://github.com/ruvnet/metaharness) · [`ruvnet/llm-stream-reformat`](https://github.com/ruvnet/llm-stream-reformat) · [`ruvnet/ai-text-watermark`](https://github.com/ruvnet/ai-text-watermark) · [`ruvnet/LatentMesh`](https://github.com/ruvnet/LatentMesh) — a research prototype exploring latent-state agent communication; its causal edge-verification and admission gate (ADR-003/008) are directly ported in shape from this repo's AGL admission model
 
 ## License
 

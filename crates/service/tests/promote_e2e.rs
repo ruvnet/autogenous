@@ -13,7 +13,7 @@ use antibody::Detector;
 use constitution::{Constitution, RoleKeys};
 use envelope::{
     evaluate_and_sign, verify_promotion_artifact, CandidateManifest, EvaluationReceipt,
-    InvariantProof, ProofArtifact, PromotionEnvelope,
+    InvariantProof, PromotionEnvelope, ProofArtifact,
 };
 use evaluator::Corpus;
 use promotion::{CanaryController, CanaryState};
@@ -104,16 +104,39 @@ fn bundle() -> (
     let parent_hash = content_hash(&p.hash);
     let receipts = vec![
         evaluate_and_sign(
-            &j1, &cand_hash, &parent_hash, &candidate, &parent_detector, &cp, "corpus-v1",
-            "eval-1", 1.5, NOW,
+            &j1,
+            &cand_hash,
+            &parent_hash,
+            &candidate,
+            &parent_detector,
+            &cp,
+            "corpus-v1",
+            "eval-1",
+            1.5,
+            NOW,
         ),
         evaluate_and_sign(
-            &j2, &cand_hash, &parent_hash, &candidate, &parent_detector, &cp, "corpus-v1",
-            "eval-1", 1.6, NOW,
+            &j2,
+            &cand_hash,
+            &parent_hash,
+            &candidate,
+            &parent_detector,
+            &cp,
+            "corpus-v1",
+            "eval-1",
+            1.6,
+            NOW,
         ),
     ];
-    let envelope =
-        PromotionEnvelope::signed(&ctrl, &c.hash(), &cand_hash, &receipts, "nonce-e2e", NOW, 600);
+    let envelope = PromotionEnvelope::signed(
+        &ctrl,
+        &c.hash(),
+        &cand_hash,
+        &receipts,
+        "nonce-e2e",
+        NOW,
+        600,
+    );
     let mut controller = CanaryController::new(&cand_hash, &p.hash, HardGates::default(), 1);
     let good = FitnessVector {
         task_quality: 1.0,
@@ -128,7 +151,15 @@ fn bundle() -> (
     for _ in 0..4 {
         controller.observe(&good);
     }
-    (c, p, manifest, receipts, envelope, vec![artifact], controller)
+    (
+        c,
+        p,
+        manifest,
+        receipts,
+        envelope,
+        vec![artifact],
+        controller,
+    )
 }
 
 #[test]
@@ -136,7 +167,9 @@ fn a_valid_signed_bundle_promotes_the_canary() {
     let (c, p, m, r, e, arts, mut controller) = bundle();
     let vp = verify_promotion_artifact(&c, &p, &m, &r, &e, &arts, NOW + 1)
         .expect("clean bundle must verify");
-    controller.promote(&vp, NOW + 1).expect("promote must succeed");
+    controller
+        .promote(&vp, NOW + 1)
+        .expect("promote must succeed");
     assert!(matches!(controller.state, CanaryState::Promoted { .. }));
 }
 

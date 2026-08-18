@@ -14,7 +14,7 @@ use agl_types::{
 use antibody::Detector;
 use constitution::{Constitution, RoleKeys};
 use envelope::{
-    evaluate_and_sign, CandidateManifest, InvariantProof, ProofArtifact, PromotionEnvelope,
+    evaluate_and_sign, CandidateManifest, InvariantProof, PromotionEnvelope, ProofArtifact,
 };
 use evaluator::Corpus;
 use promotion::CanaryController;
@@ -101,16 +101,39 @@ fn main() {
     let cand_hash = manifest.candidate_hash();
     let parent_hash = content_hash(&p.hash);
     let r1 = evaluate_and_sign(
-        &j1, &cand_hash, &parent_hash, &candidate, &parent_detector, &cp, "corpus-v1", "eval-1",
-        1.5, NOW,
+        &j1,
+        &cand_hash,
+        &parent_hash,
+        &candidate,
+        &parent_detector,
+        &cp,
+        "corpus-v1",
+        "eval-1",
+        1.5,
+        NOW,
     );
     let r2 = evaluate_and_sign(
-        &j2, &cand_hash, &parent_hash, &candidate, &parent_detector, &cp, "corpus-v1", "eval-1",
-        1.6, NOW,
+        &j2,
+        &cand_hash,
+        &parent_hash,
+        &candidate,
+        &parent_detector,
+        &cp,
+        "corpus-v1",
+        "eval-1",
+        1.6,
+        NOW,
     );
     let receipts = vec![r1, r2];
-    let envelope =
-        PromotionEnvelope::signed(&ctrl, &c.hash(), &cand_hash, &receipts, "nonce-e2e", NOW, 600);
+    let envelope = PromotionEnvelope::signed(
+        &ctrl,
+        &c.hash(),
+        &cand_hash,
+        &receipts,
+        "nonce-e2e",
+        NOW,
+        600,
+    );
 
     // Drive a canary to 100%-healthy so `promote()` will finalize it.
     let mut controller = CanaryController::new(&cand_hash, &p.hash, HardGates::default(), 1);

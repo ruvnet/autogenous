@@ -17,15 +17,15 @@
 //! always yield the same verdict — independently re-runnable per ADR-392 §3.4.
 
 use agl_types::{FitnessVector, Genome, HardGates, Mutation};
+use antibody::Detector;
 use axum::{
     routing::{get, post},
     Json, Router,
 };
-use antibody::Detector;
 use constitution::Constitution;
 use envelope::{
     evaluate_and_sign, verify_promotion_artifact, CandidateManifest, EvaluationReceipt,
-    ProofArtifact, PromotionEnvelope,
+    PromotionEnvelope, ProofArtifact,
 };
 use evaluator::Corpus;
 use promotion::{CanaryController, CanaryState, Decision};
@@ -91,7 +91,7 @@ async fn agl_admit(Json(req): Json<AdmitRequest>) -> Json<AdmitResponse> {
             // machine code (the variant name) + a full human reason from it.
             let full = format!("{e:?}");
             let code = full
-                .split(|c: char| c == ' ' || c == '(' || c == '{')
+                .split([' ', '(', '{'])
                 .next()
                 .unwrap_or("Error")
                 .to_string();
@@ -308,7 +308,9 @@ fn judge_authorities() -> Vec<SigningAuthority> {
             dev_judges()
         }
         Err(_) => {
-            tracing::warn!("AUTOGENOUS_JUDGE_SEEDS unset; using DEV judge keys (pin real keys in prod)");
+            tracing::warn!(
+                "AUTOGENOUS_JUDGE_SEEDS unset; using DEV judge keys (pin real keys in prod)"
+            );
             dev_judges()
         }
     }
@@ -322,7 +324,10 @@ fn dev_judges() -> Vec<SigningAuthority> {
 }
 
 fn controller_authority() -> SigningAuthority {
-    match std::env::var("AUTOGENOUS_CONTROLLER_SEED").ok().and_then(|s| seed_from_hex(&s)) {
+    match std::env::var("AUTOGENOUS_CONTROLLER_SEED")
+        .ok()
+        .and_then(|s| seed_from_hex(&s))
+    {
         Some(seed) => SigningAuthority::from_seed("controller", seed),
         None => SigningAuthority::from_seed("controller", [3u8; 32]),
     }
@@ -389,14 +394,17 @@ async fn judges_evaluate(Json(req): Json<EvaluateRequest>) -> Json<EvaluateRespo
     // Refuse to originate evidence under a constitution that doesn't pin us —
     // the key policy is constitutionally governed, not self-asserted.
     let pinned = &req.constitution.pinned_keys;
-    if !judges.iter().all(|j| pinned.judges.contains(&j.public_hex()))
+    if !judges
+        .iter()
+        .all(|j| pinned.judges.contains(&j.public_hex()))
         || !pinned.controllers.contains(&controller.public_hex())
     {
         return Json(EvaluateResponse {
             receipts: vec![],
             envelope: None,
             error: Some(
-                "this service's judge/controller keys are not pinned in the submitted constitution".into(),
+                "this service's judge/controller keys are not pinned in the submitted constitution"
+                    .into(),
             ),
         });
     }

@@ -59,6 +59,8 @@ console.log(res.metrics);  // routingMs, timeToFirstFrameMs, dataFrames, rejecte
 
 New here? Read the **[User Guide](docs/USER-GUIDE.md)** (task-oriented, five walkthroughs)
 and the **[API / SDK Reference](docs/API.md)** (every public export, grouped by layer).
+For RuView/Cognitum integration, use the
+**[Cognitum Spaces guide](docs/COGNITUM-SPACES.md)**.
 
 ## What's in the box
 
@@ -73,7 +75,7 @@ and the **[API / SDK Reference](docs/API.md)** (every public export, grouped by 
 | **Real backends** | `openRouterExpert`, `geminiExpert`, `CommandStreamingExpert` (`claude`/`codex`), `harnessPodExperts` | Run the mesh against OpenRouter / Gemini / local `claude -p` / `codex exec` / create-agent-harness pods. |
 | **Governed evolution (ADR-400/401)** | `evolveMesh`, `promotable`, `promoteAuthorized`, `verifyLedger`, `CEILINGS` | Flywheel over the *evolvable* params only, inside frozen ceilings, ed25519-signed receipts; promotion gated by the one predicate `Better ∧ Safe ∧ Authorized ∧ Reversible`. |
 | **Reputation market (ADR-401 cap 9)** | `signCapabilityClaim`, `mintPerformanceRecord`, `reputation`, `selectionWeight` | Peers advertise capabilities and earn reputation only from externally-verified contribution (tied to `admitDurableWrite`); the `w=q·t·r/(c·l)` selection weight is a labeled *unvalidated* hypothesis. |
-| **Cognitum integration (ADR-402/093)** | `CognitumSpacesClient`, `spacesEnvelopeToObservation`, `CognitumIdentityClient`, `sessionAuth` | Connect the mesh to the DEPLOYED Cognitum Spaces service (live `GET /v1/spaces`) under a user's Cognitum OAuth session (identity CLI exchange → Bearer); map Spaces envelopes → Observations. |
+| **Cognitum integration (ADR-402/093)** | `CognitumSpacesClient`, `spacesEnvelopeToObservation`, `spatialResourceToObservation`, `CognitumIdentityClient`, `sessionAuth` | Read the deployed legacy Space twins and the versioned hierarchy/events/alerts release candidate under API-key or RuView OAuth authority; validate the semantic-only boundary and map records into fail-closed derived observations. |
 
 ## Architecture
 

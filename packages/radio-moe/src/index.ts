@@ -260,6 +260,7 @@ export { TlsPeerNode, tlsSendEnvelope, TlsConnection } from './tls-transport.js'
 export {
   CognitumSpacesClient,
   spacesEnvelopeToObservation,
+  spatialResourceToObservation,
   privacyOf,
   apiKeyAuth,
   bearerAuth,
@@ -267,10 +268,16 @@ export {
   type CognitumAuth,
   type CognitumSpacesConfig,
   type CognitumSpaceTwin,
+  type CognitumSpatialResource,
+  type SpatialKind,
+  type SpatialPageRequest,
+  type SpatialListResult,
   type CognitumSpacesEnvelope,
   type SpacesBoundary,
   type SpacesListResult,
   type CognitumFetchLike,
+  SPATIAL_KINDS,
+  validateSpatialResult,
 } from './cognitum-spaces.js';
 
 // Cognitum identity CLI session exchange (ADR-093). Its `cognitum-cli` token is

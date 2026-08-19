@@ -7,12 +7,14 @@ import assert from 'node:assert/strict';
 import {
   CognitumSpacesClient,
   spacesEnvelopeToObservation,
+  spatialResourceToObservation,
   privacyOf,
   apiKeyAuth,
   bearerAuth,
   admitObservation,
   confidenceTier,
   type CognitumSpacesEnvelope,
+  type CognitumSpatialResource,
   type CognitumFetchLike,
 } from '../src/index.js';
 
@@ -66,7 +68,9 @@ test('privacy tiers and missing calibration are fail-closed downstream', () => {
 test('auth headers: cog_ key vs Bearer, read at call time', () => {
   assert.deepEqual(apiKeyAuth(() => 'cog_abc')(), { 'x-api-key': 'cog_abc' });
   assert.deepEqual(apiKeyAuth(() => undefined)(), {});
+  assert.deepEqual(apiKeyAuth(() => 'cog_bad\r\nheader')(), {});
   assert.deepEqual(bearerAuth(() => 'idtok')(), { authorization: 'Bearer idtok' });
+  assert.deepEqual(bearerAuth(() => 'bad token')(), {});
 });
 
 test('listSpaces parses the real {object:list, data, boundary} shape + auth (injected fetch)', async () => {
@@ -94,6 +98,78 @@ test('listSpaces parses the real {object:list, data, boundary} shape + auth (inj
   assert.equal(seen[0]!.headers['x-api-key'], 'cog_xyz');
   // legacy convenience: listSpaces() returns just the data array
   assert.equal((await client.listSpaces()).length, 1);
+});
+
+test('versioned hierarchy/events are paged and remain derived evidence', async () => {
+  const seen: string[] = [];
+  const event: CognitumSpatialResource = {
+    id: 'event-1', tenantId: 'tenant-1', workspaceId: '11111111-1111-4111-8111-111111111111',
+    kind: 'events', schemaVersion: '1.0', privacy: 'P2', messageId: 'message-1',
+    eventSequence: 7, version: 1, siteId: 'site-1', spaceId: 'room-1',
+    eventType: 'occupancy.changed', observedAt: '2026-08-19T10:00:00Z',
+    expiresAt: '2026-08-19T10:01:00Z', confidence: 0.8,
+    attributes: { occupancy: 2 },
+    provenance: { sourceId: 'sensor-1', modelVersion: 'cal-1', digest: 'witness-1' },
+  };
+  const fake: CognitumFetchLike = async (url) => {
+    seen.push(url);
+    return {
+      ok: true, status: 200,
+      text: async () => JSON.stringify({
+        object: 'list', kind: 'events', schemaVersion: '1.0', data: [event], nextCursor: 'next-1',
+        boundary: { authoritativeState: 'HomeCore Edge', excluded: [...REQUIRED_EXCLUSIONS_FOR_TEST] },
+      }),
+      json: async () => ({}),
+    };
+  };
+  const client = new CognitumSpacesClient({
+    baseUrl: 'https://gw.example', auth: bearerAuth(() => 'ruview-oauth'), fetchImpl: fake,
+  });
+  const result = await client.listSpatial('events', { limit: 25, cursor: 'prior' });
+  assert.equal(result.data[0]!.eventType, 'occupancy.changed');
+  assert.equal(result.nextCursor, 'next-1');
+  assert.equal(seen[0], 'https://gw.example/v1/spatial/events?limit=25&cursor=prior');
+
+  const observation = spatialResourceToObservation(event);
+  assert.ok(observation.lineage);
+  assert.equal(observation.lineage.derived, true);
+  assert.equal(observation.lineage.messageId, 'message-1');
+  assert.equal(admitObservation(observation, Date.parse('2026-08-19T10:00:30Z')).admissible, true);
+  assert.notEqual(confidenceTier(observation), 'authorized-workflow');
+});
+
+test('versioned client binds API keys to a UUID workspace and validates kind-specific privacy', async () => {
+  const never: CognitumFetchLike = async () => { throw new Error('must not fetch'); };
+  const client = new CognitumSpacesClient({ auth: apiKeyAuth(() => 'cog_key'), fetchImpl: never });
+  await assert.rejects(() => client.listSpatial('sites'), /require workspace id/);
+  await assert.rejects(
+    () => client.listSpatial('sites', { workspaceId: 'not-a-uuid' }),
+    /invalid workspace id/,
+  );
+  await assert.rejects(
+    () => client.listSpatial('sites', { workspaceId: '11111111-1111-7111-8111-111111111111' }),
+    /must not fetch/,
+  );
+
+  const invalidEntity = {
+    object: 'list', kind: 'entities', schemaVersion: '1.0', nextCursor: null,
+    boundary: { authoritativeState: 'HomeCore Edge', excluded: [...REQUIRED_EXCLUSIONS_FOR_TEST] },
+    data: [{
+      id: 'person-1', tenantId: 'tenant-1', workspaceId: '11111111-1111-4111-8111-111111111111',
+      kind: 'entities', schemaVersion: '1.0', privacy: 'P2', messageId: 'm-1',
+      eventSequence: 1, version: 1, siteId: 'site-1', spaceId: 'space-1',
+      entityType: 'person', identityMode: 'named', observedAt: '2026-08-19T10:00:00Z',
+      attributes: {}, provenance: {},
+    }],
+  };
+  const response: CognitumFetchLike = async () => ({
+    ok: true, status: 200, text: async () => JSON.stringify(invalidEntity), json: async () => ({}),
+  });
+  const oauth = new CognitumSpacesClient({ auth: bearerAuth(() => 'token'), fetchImpl: response });
+  await assert.rejects(() => oauth.listSpatial('entities'), /entity privacy contract/);
+  invalidEntity.data[0]!.identityMode = 'anonymous';
+  (invalidEntity.data[0] as Record<string, unknown>).attributes = { packet_capture: 'raw' };
+  await assert.rejects(() => oauth.listSpatial('entities'), /forbidden raw field/);
 });
 
 test('client rejects unsafe URLs, limits, and ambiguous credentials', async () => {

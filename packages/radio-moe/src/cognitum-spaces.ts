@@ -1,10 +1,11 @@
-//! Cognitum Spaces adapter — connect the mesh to the DEPLOYED Cognitum Spaces
-//! service (ADR-402's world-model layer, made real).
+//! Cognitum Spaces adapter — connect the mesh to Cognitum Spaces
+//! (ADR-402's world-model layer).
 //!
 //! ADR-402 specified Cognitum Spaces as the external spatial world-model the mesh
-//! plugs into. It is deployed behind the Cognitum API gateway at
-//! `GET /v1/spaces`. This adapter reads spatial twin
-//! state over that REST surface and maps a Cognitum Spaces **Envelope** to a
+//! plugs into. The legacy `GET /v1/spaces` route is deployed behind the
+//! Cognitum API gateway; the same adapter supports the accepted versioned
+//! `GET /v1/spatial/{kind}` family when enabled. It reads spatial twin state
+//! over that REST surface and maps a Cognitum Spaces **Envelope** to a
 //! radio-moe **Observation**, so real spatial state flows through `admitObservation`
 //! (the same fail-closed admission — no fact without confidence/privacy/expiry).
 //!
@@ -24,7 +25,8 @@ export type CognitumAuth = () => Record<string, string>;
 export function apiKeyAuth(getKey: () => string | undefined): CognitumAuth {
   return () => {
     const k = getKey();
-    return k?.startsWith('cog_') ? { 'x-api-key': k } : {};
+    return typeof k === 'string' && k.startsWith('cog_') && k.length > 4 && k.length <= 512
+      && !/[\s\u0000-\u001f\u007f]/u.test(k) ? { 'x-api-key': k } : {};
   };
 }
 
@@ -32,7 +34,8 @@ export function apiKeyAuth(getKey: () => string | undefined): CognitumAuth {
 export function bearerAuth(getToken: () => string | undefined): CognitumAuth {
   return () => {
     const t = getToken();
-    return t ? { authorization: `Bearer ${t}` } : {};
+    return typeof t === 'string' && t.length > 0 && t.length <= 8192
+      && !/[\s\u0000-\u001f\u007f]/u.test(t) ? { authorization: `Bearer ${t}` } : {};
   };
 }
 
@@ -63,12 +66,17 @@ export interface CognitumSpacesConfig {
   maxResponseBytes?: number;
 }
 
-/** The deployed Cognitum Spaces gateway route (verified live with a `cog_` key). */
+/** The Cognitum Spaces gateway origin; the legacy route is verified live. */
 const DEFAULT_BASE_URL = 'https://api.cognitum.one';
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 1024;
 const MAX_CONFIGURED_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_SPACES = 100;
+const MAX_JSON_DEPTH = 16;
+const MAX_JSON_NODES = 10_000;
+const MAX_ARRAY_ITEMS = 1_000;
+const MAX_OBJECT_KEYS = 128;
+const MAX_STRING_BYTES = 4_096;
 const REQUIRED_EXCLUSIONS = [
   'raw_csi', 'cir', 'rf_tensors', 'recordings', 'pose_frames',
   'vital_waveforms', 'identity_observations',
@@ -90,6 +98,60 @@ export interface CognitumSpaceTwin {
   state: { confidence: number | null; occupancy: number | null; classification: 'P2'; [k: string]: unknown };
   provenance: Record<string, unknown>;
   [k: string]: unknown;
+}
+
+/** Versioned spatial collections from Cognitum API ADR-101. */
+export const SPATIAL_KINDS = [
+  'sites', 'buildings', 'floors', 'spaces', 'zones', 'entities', 'events', 'alerts',
+] as const;
+export type SpatialKind = typeof SPATIAL_KINDS[number];
+
+/** One strictly validated P2/P3 resource from `/v1/spatial/{kind}`. */
+export interface CognitumSpatialResource {
+  id: string;
+  tenantId: string;
+  workspaceId: string;
+  kind: SpatialKind;
+  schemaVersion: '1.0';
+  privacy: 'P2' | 'P3';
+  messageId: string;
+  eventSequence: number;
+  version: number;
+  siteId?: string | null;
+  buildingId?: string | null;
+  floorId?: string | null;
+  spaceId?: string | null;
+  zoneId?: string | null;
+  name?: string | null;
+  entityType?: 'sensor' | 'person' | 'object' | 'track' | null;
+  identityMode?: 'anonymous' | null;
+  eventType?: string | null;
+  alertType?: string | null;
+  severity?: 'info' | 'warning' | 'critical' | null;
+  status?: 'open' | 'acknowledged' | 'resolved' | null;
+  observedAt: string;
+  expiresAt?: string | null;
+  retentionExpiresAt?: string | null;
+  confidence?: number | null;
+  attributes: Record<string, unknown>;
+  provenance: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface SpatialPageRequest {
+  limit?: number;
+  cursor?: string;
+  /** Required for API-key compatibility; OAuth derives workspace from the token. */
+  workspaceId?: string;
+}
+
+export interface SpatialListResult {
+  object: 'list';
+  kind: SpatialKind;
+  schemaVersion: '1.0';
+  data: CognitumSpatialResource[];
+  nextCursor: string | null;
+  boundary: SpacesBoundary;
 }
 
 /** A Cognitum Spaces MQTT-fabric Envelope (asyncapi/cognitum-spaces.yaml). */
@@ -152,22 +214,13 @@ export class CognitumSpacesClient {
     return {};
   }
 
-  /** GET /v1/spaces — the caller's authorized spatial twins. Returns just the
-   *  twin list; use {@link listSpacesResult} for the privacy boundary too. */
-  async listSpaces(): Promise<CognitumSpaceTwin[]> {
-    return (await this.listSpacesResult()).data;
-  }
-
-  /** GET /v1/spaces — the full Stripe-style list result, INCLUDING the service's
-   *  `boundary` (what raw sensing it deliberately excludes from the cloud — the
-   *  ADR-402 "raw sensing stays local" enforcement, verifiable at the edge). */
-  async listSpacesResult(): Promise<SpacesListResult> {
+  private async getJson(path: string): Promise<unknown> {
     const fetchImpl = this.cfg.fetchImpl ?? (globalThis.fetch as unknown as CognitumFetchLike);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     let res;
     try {
-      res = await fetchImpl(`${this.baseUrl}/v1/spaces`, {
+      res = await fetchImpl(`${this.baseUrl}${path}`, {
         method: 'GET',
         headers: { accept: 'application/json', ...this.authHeaders() },
         signal: controller.signal,
@@ -185,9 +238,47 @@ export class CognitumSpacesClient {
       throw new Error('cognitum spaces: unexpected content type');
     }
     const raw = await readBoundedBody(res, this.cfg.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES);
-    let body: unknown;
-    try { body = JSON.parse(raw); } catch { throw new Error('cognitum spaces: malformed JSON'); }
-    return validateSpacesResult(body);
+    try { return JSON.parse(raw); } catch { throw new Error('cognitum spaces: malformed JSON'); }
+  }
+
+  /** GET /v1/spaces — the caller's authorized spatial twins. Returns just the
+   *  twin list; use {@link listSpacesResult} for the privacy boundary too. */
+  async listSpaces(): Promise<CognitumSpaceTwin[]> {
+    return (await this.listSpacesResult()).data;
+  }
+
+  /** GET /v1/spaces — the full Stripe-style list result, INCLUDING the service's
+   *  `boundary` (what raw sensing it deliberately excludes from the cloud — the
+   *  ADR-402 "raw sensing stays local" enforcement, verifiable at the edge). */
+  async listSpacesResult(): Promise<SpacesListResult> {
+    return validateSpacesResult(await this.getJson('/v1/spaces'));
+  }
+
+  /** Page one exact versioned hierarchy/event/alert collection. Read-only. */
+  async listSpatial(kind: SpatialKind, page: SpatialPageRequest = {}): Promise<SpatialListResult> {
+    if (!SPATIAL_KINDS.includes(kind)) throw new Error('cognitum spaces: invalid spatial kind');
+    const limit = page.limit ?? 50;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      throw new Error('cognitum spaces: invalid page limit');
+    }
+    if (page.cursor !== undefined
+      && (!page.cursor || page.cursor.length > 512 || /[\u0000-\u001f\u007f]/u.test(page.cursor))) {
+      throw new Error('cognitum spaces: invalid page cursor');
+    }
+    if (page.workspaceId !== undefined && !UUID_RE.test(page.workspaceId)) {
+      throw new Error('cognitum spaces: invalid workspace id');
+    }
+    const auth = this.authHeaders();
+    if (auth['x-api-key'] !== undefined && page.workspaceId === undefined) {
+      throw new Error('cognitum spaces: API-key spatial reads require workspace id');
+    }
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (page.cursor) query.set('cursor', page.cursor);
+    if (page.workspaceId) query.set('workspaceId', page.workspaceId);
+    return validateSpatialResult(
+      await this.getJson(`/v1/spatial/${kind}?${query.toString()}`),
+      kind,
+    );
   }
 }
 
@@ -244,17 +335,56 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const FORBIDDEN_FIELDS = new Set([
+  'rawcsi', 'csi', 'channelstateinformation', 'cir', 'rawcir', 'channelimpulseresponse',
+  'rftensor', 'rftensors', 'packetcapture', 'packetcaptures', 'pcap', 'recording', 'recordings',
+  'audiorecording', 'videorecording', 'poseframe', 'poseframes', 'skeleton',
+  'keypoints', 'vitalwaveform', 'vitalwaveforms', 'heartratewaveform',
+  'identityobservation', 'identityobservations', 'biometric', 'biometrics', 'face',
+  'faces', 'faceembedding',
+]);
+
+function assertBoundedSemantic(value: unknown): void {
+  let nodes = 0;
+  const visit = (current: unknown, depth: number): void => {
+    nodes += 1;
+    if (nodes > MAX_JSON_NODES || depth > MAX_JSON_DEPTH) throw new Error('cognitum spaces: response structure exceeds bound');
+    if (typeof current === 'string') {
+      if (new TextEncoder().encode(current).byteLength > MAX_STRING_BYTES) throw new Error('cognitum spaces: response string exceeds bound');
+      return;
+    }
+    if (Array.isArray(current)) {
+      if (current.length > MAX_ARRAY_ITEMS) throw new Error('cognitum spaces: response array exceeds bound');
+      for (const item of current) visit(item, depth + 1);
+      return;
+    }
+    if (!record(current)) return;
+    const entries = Object.entries(current);
+    if (entries.length > MAX_OBJECT_KEYS) throw new Error('cognitum spaces: response object exceeds bound');
+    for (const [key, child] of entries) {
+      if (new TextEncoder().encode(key).byteLength > MAX_STRING_BYTES) throw new Error('cognitum spaces: response key exceeds bound');
+      const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+      if (FORBIDDEN_FIELDS.has(normalized)) throw new Error('cognitum spaces: forbidden raw field');
+      visit(child, depth + 1);
+    }
+  };
+  visit(value, 0);
+}
+
 function forbiddenRawField(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(forbiddenRawField);
   if (!record(value)) return false;
   return Object.entries(value).some(([key, child]) => {
     const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
-    return ['rawcsi', 'cir', 'rftensors', 'recordings', 'poseframes', 'vitalwaveforms', 'identityobservations'].includes(normalized)
+    return FORBIDDEN_FIELDS.has(normalized)
       || forbiddenRawField(child);
   });
 }
 
 export function validateSpacesResult(value: unknown): SpacesListResult {
+  assertBoundedSemantic(value);
   if (!record(value) || value.object !== 'list' || !Array.isArray(value.data) || value.data.length > MAX_SPACES) {
     throw new Error('cognitum spaces: invalid list envelope');
   }
@@ -280,6 +410,70 @@ export function validateSpacesResult(value: unknown): SpacesListResult {
     return item as unknown as CognitumSpaceTwin;
   });
   return { data, boundary: boundary as unknown as SpacesBoundary };
+}
+
+/** Independently validate the versioned Cognitum API ADR-101 list contract. */
+export function validateSpatialResult(value: unknown, expectedKind: SpatialKind): SpatialListResult {
+  assertBoundedSemantic(value);
+  if (!record(value) || value.object !== 'list' || value.kind !== expectedKind
+    || value.schemaVersion !== '1.0' || !Array.isArray(value.data) || value.data.length > MAX_SPACES) {
+    throw new Error('cognitum spaces: invalid spatial list envelope');
+  }
+  const boundary = value.boundary;
+  if (!record(boundary) || boundary.authoritativeState !== 'HomeCore Edge'
+    || !Array.isArray(boundary.excluded)
+    || REQUIRED_EXCLUSIONS.some((required) => !(boundary.excluded as unknown[]).includes(required))) {
+    throw new Error('cognitum spaces: invalid spatial list envelope');
+  }
+  if (value.nextCursor !== null && value.nextCursor !== undefined
+    && (typeof value.nextCursor !== 'string' || !value.nextCursor || value.nextCursor.length > 512)) {
+    throw new Error('cognitum spaces: invalid spatial cursor');
+  }
+  const data = value.data.map((item): CognitumSpatialResource => {
+    if (!record(item) || !ID_RE.test(String(item.id ?? ''))
+      || typeof item.tenantId !== 'string' || !item.tenantId
+      || !UUID_RE.test(String(item.workspaceId ?? ''))
+      || item.kind !== expectedKind || item.schemaVersion !== '1.0'
+      || (item.privacy !== 'P2' && item.privacy !== 'P3')
+      || !ID_RE.test(String(item.messageId ?? ''))
+      || !Number.isSafeInteger(item.eventSequence) || Number(item.eventSequence) < 0
+      || !Number.isSafeInteger(item.version) || Number(item.version) < 1
+      || typeof item.observedAt !== 'string' || !Number.isFinite(Date.parse(item.observedAt))
+      || !record(item.attributes) || !record(item.provenance)) {
+      throw new Error('cognitum spaces: invalid spatial resource');
+    }
+    if (item.confidence !== null && item.confidence !== undefined
+      && (typeof item.confidence !== 'number' || !Number.isFinite(item.confidence)
+        || item.confidence < 0 || item.confidence > 1)) {
+      throw new Error('cognitum spaces: invalid confidence');
+    }
+    const required = (field: string): boolean => typeof item[field] === 'string' && Boolean(item[field]);
+    if (expectedKind !== 'sites' && !required('siteId')) throw new Error('cognitum spaces: incomplete hierarchy');
+    if (expectedKind === 'floors' && !required('buildingId')) throw new Error('cognitum spaces: incomplete hierarchy');
+    if (expectedKind === 'spaces' && (!required('buildingId') || !required('floorId'))) {
+      throw new Error('cognitum spaces: incomplete hierarchy');
+    }
+    if (['zones', 'entities', 'events', 'alerts'].includes(expectedKind) && !required('spaceId')) {
+      throw new Error('cognitum spaces: incomplete hierarchy');
+    }
+    if (expectedKind === 'entities'
+      && (!['sensor', 'person', 'object', 'track'].includes(String(item.entityType))
+        || (['person', 'track'].includes(String(item.entityType)) && item.identityMode !== 'anonymous'))) {
+      throw new Error('cognitum spaces: invalid entity privacy contract');
+    }
+    if (expectedKind === 'events' && !required('eventType')) throw new Error('cognitum spaces: invalid event contract');
+    if (expectedKind === 'alerts'
+      && (!required('alertType') || !['info', 'warning', 'critical'].includes(String(item.severity))
+        || !['open', 'acknowledged', 'resolved'].includes(String(item.status)))) {
+      throw new Error('cognitum spaces: invalid alert contract');
+    }
+    return item as unknown as CognitumSpatialResource;
+  });
+  return {
+    object: 'list', kind: expectedKind, schemaVersion: '1.0', data,
+    nextCursor: typeof value.nextCursor === 'string' ? value.nextCursor : null,
+    boundary: boundary as unknown as SpacesBoundary,
+  };
 }
 
 /** Cognitum privacy (P2/P3, the cloud-bridged tiers) → radio-moe PrivacyClass. */
@@ -317,6 +511,40 @@ export function spacesEnvelopeToObservation(env: CognitumSpacesEnvelope): Observ
       messageId: env.messageId,
       sequence: env.sequence,
       provenance: env.provenance,
+      derived: true,
+    },
+  };
+}
+
+/**
+ * Map a versioned resource into the same derived-observation admission seam.
+ * Missing source/calibration/expiry stays missing, deliberately causing
+ * `admitObservation` to reject rather than inventing authority from cloud state.
+ */
+export function spatialResourceToObservation(resource: CognitumSpatialResource): Observation {
+  const sourceId = typeof resource.provenance.sourceId === 'string'
+    ? resource.provenance.sourceId : '';
+  const calibrationVersion = typeof resource.provenance.modelVersion === 'string'
+    ? resource.provenance.modelVersion : '';
+  const provenance = typeof resource.provenance.digest === 'string'
+    ? resource.provenance.digest : '';
+  const kind = resource.eventType ?? resource.alertType ?? `${resource.kind}.state`;
+  return {
+    sourceId,
+    location: resource.spaceId ?? resource.siteId ?? resource.id,
+    kind,
+    value: resource.attributes,
+    confidence: typeof resource.confidence === 'number' ? resource.confidence : Number.NaN,
+    privacyClass: privacyOf(resource.privacy),
+    calibrationVersion,
+    issuedAt: toEpoch(resource.observedAt),
+    expiresAt: resource.expiresAt ? toEpoch(resource.expiresAt) : 0,
+    lineage: {
+      origin: 'cognitum-spaces',
+      tenantId: resource.tenantId,
+      messageId: resource.messageId,
+      sequence: resource.eventSequence,
+      provenance,
       derived: true,
     },
   };

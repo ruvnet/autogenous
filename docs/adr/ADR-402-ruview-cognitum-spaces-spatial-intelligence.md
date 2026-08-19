@@ -1,8 +1,9 @@
 # ADR-402 — RuView + Cognitum Spaces: the spatial-intelligence layer
 
-- Status: **Accepted** (the read-side adapter and fail-closed seam are
-  implemented in `radio-moe`; write-side synchronization and the 30-day
-  operational acceptance test remain separately gated rollout work)
+- Status: **Accepted** (legacy and versioned read-side adapters plus the
+  fail-closed seam are implemented in the `radio-moe` 0.3.0 release candidate;
+  versioned API deployment, npm publication, write-side synchronization, and
+  the 30-day operational acceptance test remain separately gated rollout work)
 - Date: 2026-08-16
 - Related: ADR-401 (Perpetual Intelligence Machine — this is capability 8
   expanded), ADR-397 (streaming mixture), ADR-399 (midstream, RVM/RVF),
@@ -47,6 +48,27 @@ Spaces-derived state is explicitly `derived` and is capped at
 from returning as apparently independent workflow authority. Missing
 confidence remains unknown (`NaN`) and missing `modelVersion` remains missing
 calibration; provenance is never used as a calibration substitute.
+
+**Update (2026-08-19) — the full versioned read contract is implemented and
+locally validated.** Cognitum API ADR-101 defines read-only pages for `sites`,
+`buildings`, `floors`, `spaces`, `zones`, anonymous `entities`, semantic
+`events`, and `alerts`. `CognitumSpacesClient.listSpatial` binds the collection
+to a fixed path, accepts a 1–100 limit and opaque bounded cursor, requires a UUID
+workspace for compatibility API keys, and relies on the signed workspace for
+RuView OAuth. It validates schema `1.0`, hierarchy parents, entity anonymity,
+event/alert fields, confidence, time, IDs, page cursors, the HomeCore boundary,
+and recursive byte/depth/node/array/object/string/raw-field limits.
+
+`spatialResourceToObservation` preserves tenant/message/sequence lineage and
+marks the result derived before it reaches `admitObservation`. It uses only
+explicit provenance source/model/digest fields. Missing calibration, source,
+confidence, or semantic expiry remains missing and therefore fails closed. A
+retention deadline is never reinterpreted as observation freshness. The client
+still exposes no write, policy approval, command, or actuator method.
+
+The locally green versioned adapter is not yet a production claim. Production
+continues to mean the legacy `/v1/spaces` evidence below until the Cognitum API
+deployment workflow, index/TTL readiness, and OAuth readback complete.
 
 ## Functional architecture
 
@@ -203,7 +225,14 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
    helper remains available only to services accepting the `cognitum-cli`
    audience. Spaces requires RuView PKCE + `spaces:read`; compatibility API keys
    remain read from a Spaces-specific environment variable.
-4. **Remaining ADR-402 loop items:** the timed failover bench (**done**, shared
+4. **Versioned spatial read:** the hierarchy/event/alert adapter, strict page
+   validator, and derived-observation mapper are **built and locally tested**.
+   Production remains gated on Cognitum API ADR-101 deployment/readback.
+5. **Release authority:** `radio-moe` 0.3.0 may publish only from the main-only
+   `radio-moe npm release` workflow. It rebuilds, typechecks, tests, audits,
+   packs and smoke-imports the exact tarball, verifies its digest, and publishes
+   with npm provenance. A local `npm publish` is not release evidence.
+6. **Remaining ADR-402 loop items:** the timed failover bench (**done**, shared
    with ADR-401), the fusion false-alert bench (**done** —
    `bench-false-alert.ts`), the sovereign-peer local-data boundary (open under
    ADR-401 capability 6), and the explicitly authorized write-side exchange.

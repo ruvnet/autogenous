@@ -1,9 +1,10 @@
 # ADR-402 — RuView + Cognitum Spaces: the spatial-intelligence layer
 
-- Status: **Accepted** (legacy and versioned read-side adapters plus the
-  fail-closed seam are implemented in the `radio-moe` 0.3.0 release candidate;
-  versioned API deployment, npm publication, write-side synchronization, and
-  the 30-day operational acceptance test remain separately gated rollout work)
+- Status: **Accepted** (legacy and versioned read-side adapters, the
+  fail-closed seam, the production HTTPS API, and provenance-published
+  `radio-moe` 0.3.x are complete; write-side synchronization, sovereign-peer
+  exchange, and the 30-day operational acceptance test remain separately
+  gated rollout work)
 - Date: 2026-08-16
 - Related: ADR-401 (Perpetual Intelligence Machine — this is capability 8
   expanded), ADR-397 (streaming mixture), ADR-399 (midstream, RVM/RVF),
@@ -200,7 +201,7 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
 | ≥95% calibrated presence accuracy | RuView calibration + RuField typed obs | **External (RuView) — bench gap** |
 | Peer-failure detection <5s | `bench-failover.ts` (shared with ADR-401) | Protocol recovery **measured** (p50 0.34 ms at 30% loss, ≈8000× under budget); sensor/network detection latency is the external part |
 | 50% false-alert reduction via fusion | `bench-false-alert.ts` + `test/false-alert.test.ts` (corroboration fusion vs no-fusion any-sensor baseline) | **Built & measured** — 58.3% reduction (60%→25%), detection retained 100% |
-| Raw sensing data stays local | Cognitum Spaces `boundary` (live) + sovereign-peer boundary (ADR-401 cap 6) | **Verified on the deployed read service** — `/v1/spaces` excludes raw_csi/cir/rf_tensors/recordings/pose_frames/vital_waveforms/identity_observations from cloud synchronization; write-side enforcement remains a separate gate |
+| Raw sensing data stays local | Cognitum Spaces `boundary` (live) + sovereign-peer boundary (ADR-401 cap 6) | **Verified on the deployed legacy and versioned read services** — raw CSI/CIR/RF tensors, recordings, pose frames, vital waveforms, and identity observations are excluded from cloud synchronization and rejected by the adapter; sovereign-peer and operational write-side evidence remain separate gates |
 | Complete receipt per external action | `action-gate.ts` + `rvf-trajectory.ts` | Built (action side); wire perception provenance in |
 
 ## Decision
@@ -226,9 +227,12 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
    audience. Spaces requires RuView PKCE + `spaces:read`; compatibility API keys
    remain read from a Spaces-specific environment variable.
 4. **Versioned spatial read:** the hierarchy/event/alert adapter, strict page
-   validator, and derived-observation mapper are **built and locally tested**.
-   Production remains gated on Cognitum API ADR-101 deployment/readback.
-5. **Release authority:** `radio-moe` 0.3.0 may publish only from the main-only
+   validator, and derived-observation mapper are **built, deployed, and
+   released**. Cognitum API ADR-101 records the production HTTPS, Firestore,
+   WAF, API-key, and live RuView PKCE readback receipts. Every new end user
+   still grants their own interactive consent; one verified token never grants
+   access on behalf of another user.
+5. **Release authority:** `radio-moe` publishes only from the main-only
    `radio-moe npm release` workflow. It rebuilds, typechecks, tests, audits,
    packs and smoke-imports the exact tarball, verifies its digest, and publishes
    with npm provenance. A local `npm publish` is not release evidence.
@@ -236,6 +240,32 @@ the same false-consensus guard ADR-401 makes constitutional, applied to sensors.
    with ADR-401), the fusion false-alert bench (**done** —
    `bench-false-alert.ts`), the sovereign-peer local-data boundary (open under
    ADR-401 capability 6), and the explicitly authorized write-side exchange.
+
+## Completed release evidence (2026-08-19)
+
+- Autogenous PR #7 merged the versioned client, strict semantic boundary,
+  lineage-preserving mapper, tests, guide, ADR expansion, and main-only release
+  workflow. PR #8 bound package metadata to the GitHub repository identity that
+  npm verifies against the Sigstore provenance statement.
+- Main CI run `32285154653` passed Rust formatting, lint, tests, dependency
+  audit, TypeScript checks, package tests, build, audit, and pack verification.
+- Release run `32285500829` rebuilt and verified the exact tarball, installed it
+  into a clean smoke project, checked its exported Cognitum client and mapper,
+  and published `radio-moe` 0.3.0 with npm provenance. The public registry now
+  resolves 0.3.0 as `latest`; no workstation publish was used.
+- Cognitum API production evidence is recorded by
+  [ADR-101](https://github.com/cognitum-one/api/blob/main/docs/adr/ADR-101-versioned-spatial-hierarchy-events-alerts.md).
+  All eight versioned HTTPS collections have authenticated production readback;
+  the composite index and both retention TTL fields are active, and the edge
+  SQL-injection control remains enforced.
+- A live RuView Authorization Code + S256 PKCE consent requested exactly
+  `sensing:read spaces:read`; the resulting in-memory access token read the
+  versioned `sites` collection with HTTP 200 and schema `1.0`. The verifier
+  revoked the temporary refresh credential and persisted no token.
+
+These receipts complete the distributable read-side integration. They do not
+claim the 30-day multi-room acceptance test, real-hardware accuracy, MQTT,
+sovereign-peer exchange, write-side synchronization, or actuator execution.
 
 ## Consequences
 

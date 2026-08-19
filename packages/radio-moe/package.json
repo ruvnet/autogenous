@@ -1,6 +1,6 @@
 {
   "name": "radio-moe",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Radio real-time streaming peer expert mesh — bounded, signed, constitution-pinned distributed MoE. @metaharness/radio is the metadata-only control plane; a signed direct peer transport carries expert streams. True logit mixing where tokenizers match; safe text-primary racing otherwise.",
   "type": "module",
   "license": "MIT",

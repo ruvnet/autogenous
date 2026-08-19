@@ -1,0 +1,64 @@
+name: radio-moe npm release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dist_tag:
+        description: npm dist-tag
+        required: false
+        default: latest
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: radio-moe-npm-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: npm-release
+    defaults:
+      run:
+        working-directory: packages/radio-moe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: refs/heads/main
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+
+      - name: Install and verify
+        run: |
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm test
+          npm audit --audit-level=high
+
+      - name: Pack and smoke the exact artifact
+        run: |
+          set -euo pipefail
+          TGZ="$PWD/$(npm pack --silent 2>/dev/null | tail -1)"
+          SHA512="$(sha512sum "$TGZ" | cut -d' ' -f1)"
+          printf 'PACKAGE_TARBALL=%s\nPACKAGE_TARBALL_SHA512=%s\n' "$TGZ" "$SHA512" >> "$GITHUB_ENV"
+          SMOKE="$(mktemp -d)"
+          cd "$SMOKE"
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-fund --no-audit "$TGZ"
+          node --input-type=module -e "const m = await import('radio-moe'); if (typeof m.CognitumSpacesClient !== 'function' || typeof m.spatialResourceToObservation !== 'function') process.exit(1)"
+
+      - name: Publish with provenance
+        run: |
+          printf '%s  %s\n' "$PACKAGE_TARBALL_SHA512" "$PACKAGE_TARBALL" | sha512sum --check -
+          npm publish "$PACKAGE_TARBALL" --provenance --access public --tag "$NPM_DIST_TAG"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_DIST_TAG: ${{ inputs.dist_tag }}

@@ -5,6 +5,7 @@
   "type": "module",
   "license": "MIT",
   "author": "rUv",
+  "repository": "https://github.com/ruvnet/autogenous",
   "keywords": [
     "mixture-of-experts",
     "moe",

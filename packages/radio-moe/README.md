@@ -75,7 +75,7 @@ For RuView/Cognitum integration, use the
 | **Real backends** | `openRouterExpert`, `geminiExpert`, `CommandStreamingExpert` (`claude`/`codex`), `harnessPodExperts` | Run the mesh against OpenRouter / Gemini / local `claude -p` / `codex exec` / create-agent-harness pods. |
 | **Governed evolution (ADR-400/401)** | `evolveMesh`, `promotable`, `promoteAuthorized`, `verifyLedger`, `CEILINGS` | Flywheel over the *evolvable* params only, inside frozen ceilings, ed25519-signed receipts; promotion gated by the one predicate `Better ∧ Safe ∧ Authorized ∧ Reversible`. |
 | **Reputation market (ADR-401 cap 9)** | `signCapabilityClaim`, `mintPerformanceRecord`, `reputation`, `selectionWeight` | Peers advertise capabilities and earn reputation only from externally-verified contribution (tied to `admitDurableWrite`); the `w=q·t·r/(c·l)` selection weight is a labeled *unvalidated* hypothesis. |
-| **Cognitum integration (ADR-402/093)** | `CognitumSpacesClient`, `spacesEnvelopeToObservation`, `spatialResourceToObservation`, `CognitumIdentityClient`, `sessionAuth` | Read the deployed legacy Space twins and the versioned hierarchy/events/alerts release candidate under API-key or RuView OAuth authority; validate the semantic-only boundary and map records into fail-closed derived observations. |
+| **Cognitum integration (ADR-402/093)** | `CognitumSpacesClient`, `spacesEnvelopeToObservation`, `spatialResourceToObservation`, `CognitumIdentityClient`, `sessionAuth` | Read the deployed legacy Space twins and production versioned hierarchy/events/alerts under API-key or RuView OAuth authority; validate the semantic-only boundary and map records into fail-closed derived observations. |
 
 ## Architecture
 

@@ -314,3 +314,29 @@ export {
   type GenerationRecord,
   type EvolutionResult,
 } from './mesh-evolve.js';
+
+// PIR WP8 (ruvnet/autogenous#10): promotion evidence exported in the
+// ruflo.flywheel-receipt/v1 shape of the ADR-322C witness/receipt
+// contract, with a strict consumer-side verifier.
+export {
+  exportPromotionReceipt,
+  exportEvolutionReceipts,
+  verifyExportedReceipt,
+  recomputeStatistics,
+  jcsCanonicalize,
+  contentIdOf,
+  decimal12,
+  uuidV7,
+  RECEIPT_SCHEMA_VERSION,
+  RECEIPT_GATE_VERSION,
+  RECEIPT_SIGNING_DOMAIN,
+  BOOTSTRAP_SEED_PREFIX,
+  POLICY_SCHEMA_VERSION,
+  CORPUS_VERSION,
+  BENCH_TASK_IDS,
+  type ExportedReceipt,
+  type ReceiptSignature,
+  type ExportOptions,
+  type EvolutionExportOptions,
+  type BootstrapResult,
+} from './receipt-export.js';

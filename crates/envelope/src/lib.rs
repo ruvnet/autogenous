@@ -25,6 +25,8 @@
 //! requires a **proof reference for every preserved invariant** — returning
 //! *every* independent violation, not just the first.
 
+pub mod regression;
+
 use agl_types::{Authority, Genome, HardInvariant, Mutation, MutationScope};
 use antibody::Detector;
 use constitution::Constitution;

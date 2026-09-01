@@ -313,6 +313,7 @@ dependencies = [
  "evaluator",
  "serde",
  "serde_json",
+ "sha2",
  "witness",
 ]
 

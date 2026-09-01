@@ -126,6 +126,61 @@ fn clean_candidate_that_beats_parent_is_admissible() {
 }
 
 #[test]
+fn distinct_corpus_ids_across_judges_are_accepted() {
+    // Independent-corpus judging (each judge scores the SAME candidate/parent
+    // pair against its OWN held-out corpus) is the intentional design for
+    // this regression candidate kind -- see the post-review correction note
+    // on `verify_regression_promotion`'s (removed) corpus-consistency check.
+    // A clean candidate must still be admissible when its judges' receipts
+    // carry genuinely different `corpus_id`s.
+    let c = constitution();
+    let p = parent(&c);
+    let m = manifest(&p, b"candidate-model-bytes-distinct-corpora");
+    let cand_hash = m.candidate_hash();
+    let parent_hash = content_hash(&p.hash);
+    let j1 = SigningAuthority::from_seed("judge-1", [1u8; 32]);
+    let j2 = SigningAuthority::from_seed("judge-2", [2u8; 32]);
+    let ctrl = SigningAuthority::from_seed("controller", [3u8; 32]);
+    // Both judges independently see the candidate beat the parent, but on
+    // two different synthetic corpora (as the RuForecast bridge does with
+    // distinct `--seed`s per judge).
+    let r1 = sign_regression_receipt(
+        &j1,
+        &cand_hash,
+        &parent_hash,
+        "ruforecast-synthetic-seed-1000",
+        24,
+        0.153,
+        0.257,
+        "ruforecast-eval-1",
+        NOW,
+    );
+    let r2 = sign_regression_receipt(
+        &j2,
+        &cand_hash,
+        &parent_hash,
+        "ruforecast-synthetic-seed-1097",
+        24,
+        0.140,
+        0.240,
+        "ruforecast-eval-1",
+        NOW,
+    );
+    let receipts = vec![r1, r2];
+    let envelope = sign_regression_promotion(
+        &ctrl,
+        &c.hash(),
+        &cand_hash,
+        &receipts,
+        "nonce-distinct-corpora",
+        NOW,
+        3600,
+    );
+    let rej = verify_regression_promotion(&c, &p, &m, &receipts, &envelope, &[], 2, 1, 0.005, NOW);
+    assert_eq!(rej, Vec::<RegressionReject>::new());
+}
+
+#[test]
 fn candidate_not_better_than_parent_is_rejected() {
     let c = constitution();
     let p = parent(&c);

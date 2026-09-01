@@ -375,12 +375,17 @@ pub fn verify_regression_promotion(
         distinct_judges.insert(r.judge_pubkey.clone());
         valid_receipts.push(r);
     }
-    let corpus_consistent = valid_receipts
-        .windows(2)
-        .all(|w| w[0].corpus_id == w[1].corpus_id);
-    if !corpus_consistent {
-        rej.push(RegressionReject::ReceiptCorpusMismatch);
-    }
+    // NOTE (post-review correction): independent-corpus judging is a
+    // first-class, intentionally supported design for this regression
+    // candidate kind -- distinct judges are expected to evaluate distinct
+    // held-out corpora so that judge disagreement is a real signal, not an
+    // artifact of re-scoring identical evidence (see this module's top doc
+    // and the RuForecast bridge that consumes it). A same-corpus-across-
+    // judges requirement, inherited unreviewed from the detector domain's
+    // "multiple reviewers, same evidence" model, would reject exactly the
+    // cross-corpus verification this kind exists to do. `ReceiptCorpusMismatch`
+    // is kept in `RegressionReject` for API/wire compatibility with anything
+    // already matching on it, but is never produced by this function.
     let pinned_distinct: std::collections::BTreeSet<&String> = valid_receipts
         .iter()
         .filter(|r| constitution.pinned_judges().contains(&r.judge_pubkey))

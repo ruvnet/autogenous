@@ -303,6 +303,104 @@ test('B7: overlapping selection and promotion-holdout task IDs are refused', () 
   );
 });
 
+// ── a live ruflo writer (v3.38.21) that breaks the number rule ──────────
+//
+// test/fixtures/ruflo-flywheel-receipt-v3.38.21.json was written by
+// `ruflo metaharness flywheel run` (ruflo v3.38.21, @claude-flow/cli) on
+// 2026-09-07 and copied verbatim. Its `candidatePolicy` carries fractional
+// BINARY floats (`alpha: 0.3`, `mmrLambda: 0.5`, ...). The receipt schema
+// says the policy "must still satisfy the ADR-322C number rules" and the
+// spec's example receipts string their fractional knob, so this receipt is
+// non-conformant and MUST be rejected — but the rejection has to name the
+// offending path so the producer can fix its encoding. Re-encoding the
+// knobs as decimal strings (and re-deriving the content IDs) is sufficient
+// for the same receipt to verify, which is the writer-side fix.
+
+const LIVE_FIXTURE = 'ruflo-flywheel-receipt-v3.38.21.json';
+
+test('live ruflo receipt with binary-float policy knobs is rejected, naming candidatePolicy.alpha', () => {
+  const { doc } = fixture(LIVE_FIXTURE);
+  const p = doc.payload as Record<string, unknown>;
+  const policy = p['candidatePolicy'] as Record<string, unknown>;
+  assert.ok(Object.values(policy).some((v) => typeof v === 'number' && !Number.isInteger(v)), 'fixture must carry a fractional policy knob');
+  const clock = new Date(p['issuedAt'] as string);
+  assert.throws(
+    () => verifyExportedReceipt(doc, [pemOf(doc)], clock),
+    /binary floats for fractional values \(at \$\.candidatePolicy\.alpha: 0\.3\).*decimal string/,
+  );
+});
+
+/** The writer-side fix, applied after the fact: every fractional binary
+ *  float in the payload becomes a scale-12 decimal string. The live receipt
+ *  has them in `candidatePolicy` AND in `evidence.verification.driftThreshold`. */
+function stringifyFractions(value: unknown): unknown {
+  if (typeof value === 'number' && !Number.isInteger(value)) return decimal12(value);
+  if (Array.isArray(value)) return value.map(stringifyFractions);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = stringifyFractions(v);
+    return out;
+  }
+  return value;
+}
+
+test('the same receipt verifies once its fractional values are decimal strings (writer-side fix)', () => {
+  const { doc } = fixture(LIVE_FIXTURE);
+  const identity = PeerIdentity.generate();
+  const fixed = { ...doc, payload: stringifyFractions(doc.payload) as Record<string, unknown> } as ExportedReceipt;
+  const policy = fixed.payload['candidatePolicy'] as Record<string, unknown>;
+  assert.ok(Object.values(policy).every((v) => typeof v !== 'number' || Number.isInteger(v)));
+  fixed.payload['candidateId'] = contentIdOf(policy);
+  fixed.payload['baselineRef'] = fixed.payload['candidateId']; // the live run compared the champion to itself
+  const stripped: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fixed.payload)) if (k !== 'receiptId') stripped[k] = v;
+  // candidateId/baselineRef seed the bootstrap, so the statistics must be recomputed too.
+  const stats = fixed.payload['statistics'] as Record<string, unknown>;
+  const recomputed = recomputeStatistics({
+    heldOutDeltas: fixed.payload['heldOutDeltas'] as string[],
+    baselineScore: fixed.payload['baselineScore'] as string,
+    candidateScore: fixed.payload['candidateScore'] as string,
+    frozenAnchorRegression: stats['frozenAnchorRegression'] as string,
+    iterations: stats['iterations'] as number,
+    corpusHash: fixed.payload['corpusHash'] as string,
+    candidateId: fixed.payload['candidateId'] as string,
+    baselineRef: fixed.payload['baselineRef'] as string,
+    evaluationRunId: fixed.payload['evaluationRunId'] as string,
+  });
+  Object.assign(stats, recomputed);
+  stripped['statistics'] = stats;
+  fixed.payload['receiptId'] = contentIdOf(stripped);
+  const signed = Buffer.concat([
+    Buffer.from(RECEIPT_SIGNING_DOMAIN, 'utf8'),
+    Buffer.from([0]),
+    Buffer.from(jcsCanonicalize(fixed.payload), 'utf8'),
+  ]);
+  fixed.signature = {
+    ...fixed.signature,
+    publicKeyPem: derToPemLocal(identity.publicKeyDer),
+    signatureBase64: Buffer.from(identity.sign(signed), 'hex').toString('base64'),
+  };
+  const clock = new Date(fixed.payload['issuedAt'] as string);
+  const result = verifyExportedReceipt(fixed, [fixed.signature.publicKeyPem], clock);
+  assert.equal(result.receiptId, fixed.payload['receiptId']);
+  assert.equal(result.accepted, false, 'the live run rejected its candidate; the contract rule recomputes the same');
+});
+
+test('JCS number domain: integers only; fractional, NaN, Infinity and -0 throw with the offending path', () => {
+  assert.equal(jcsCanonicalize({ b: 2, a: [1, 'x', null, true] }), '{"a":[1,"x",null,true],"b":2}');
+  assert.throws(() => jcsCanonicalize({ knobs: { alpha: 0.3 } }), /at \$\.knobs\.alpha: 0\.3/);
+  assert.throws(() => jcsCanonicalize([1, [2, 2.5]]), /at \$\[1\]\[1\]: 2\.5/);
+  for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -0]) {
+    assert.throws(() => jcsCanonicalize({ v: bad }), /NaN, Infinity and -0 \(at \$\.v/);
+  }
+});
+
+function derToPemLocal(der: Buffer): string {
+  const b64 = der.toString('base64');
+  const lines = b64.match(/.{1,64}/g) ?? [];
+  return `-----BEGIN PUBLIC KEY-----\n${lines.join('\n')}\n-----END PUBLIC KEY-----\n`;
+}
+
 // ── canonicalization sanity against the contract's own construction ─────
 
 test('JCS agrees with the fixture: recomputing the fixture receiptId from raw parse', () => {

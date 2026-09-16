@@ -83,16 +83,30 @@ const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 /** RFC 8785 canonical JSON, restricted to the contract's number domain:
  *  only integers may appear as JSON numbers (fractional values are
- *  decimal strings per ADR-322C), so ECMAScript float formatting never
- *  comes into play. Non-integer or non-finite numbers throw. */
-export function jcsCanonicalize(value: unknown): string {
+ *  decimal strings per ADR-322C §Canonical format rule 2), so ECMAScript
+ *  float formatting never comes into play. Non-integer or non-finite
+ *  numbers throw, and the error names the JSON path of the offender so a
+ *  producer can see exactly which field must be re-encoded.
+ *
+ *  This applies to the WHOLE record, including `candidatePolicy`: the
+ *  ruflo receipt schema (`ruflo-flywheel-receipt-v1.schema.json`) declares
+ *  the policy opaque but says it "must still satisfy the ADR-322C number
+ *  rules", and the spec's example receipts string their fractional knob
+ *  (`"hybridWeight": "0.65"`). A receipt that carries `alpha: 0.3` as a
+ *  binary float is therefore non-conformant, whoever wrote it. */
+export function jcsCanonicalize(value: unknown, path = '$'): string {
   if (value === null) return 'null';
   switch (typeof value) {
     case 'boolean':
       return value ? 'true' : 'false';
     case 'number':
-      if (!Number.isInteger(value) || Object.is(value, -0)) {
-        throw new Error('contract forbids non-integer JSON numbers and -0');
+      if (!Number.isFinite(value) || Object.is(value, -0)) {
+        throw new Error(`contract forbids NaN, Infinity and -0 (at ${path}; ADR-322C §Canonical format rule 1)`);
+      }
+      if (!Number.isInteger(value)) {
+        throw new Error(
+          `contract forbids binary floats for fractional values (at ${path}: ${value}); encode it as a decimal string (ADR-322C §Canonical format rule 2)`,
+        );
       }
       return JSON.stringify(value);
     case 'string':
@@ -100,17 +114,17 @@ export function jcsCanonicalize(value: unknown): string {
     case 'object':
       break;
     default:
-      throw new Error(`unsupported JSON type: ${typeof value}`);
+      throw new Error(`unsupported JSON type: ${typeof value} (at ${path})`);
   }
   if (Array.isArray(value)) {
-    return `[${value.map(jcsCanonicalize).join(',')}]`;
+    return `[${value.map((v, i) => jcsCanonicalize(v, `${path}[${i}]`)).join(',')}]`;
   }
   const obj = value as Record<string, unknown>;
   const keys = Object.keys(obj).sort(utf16Compare);
   const parts: string[] = [];
   for (const key of keys) {
-    if (FORBIDDEN_KEYS.has(key)) throw new Error(`forbidden key: ${key}`);
-    parts.push(`${JSON.stringify(key)}:${jcsCanonicalize(obj[key])}`);
+    if (FORBIDDEN_KEYS.has(key)) throw new Error(`forbidden key: ${key} (at ${path})`);
+    parts.push(`${JSON.stringify(key)}:${jcsCanonicalize(obj[key], `${path}.${key}`)}`);
   }
   return `{${parts.join(',')}}`;
 }
@@ -125,9 +139,11 @@ function utf16Compare(a: string, b: string): number {
   return a.length - b.length;
 }
 
-/** ADR-322C content ID over canonical bytes. */
-export function contentIdOf(value: unknown): string {
-  return `sha256:${createHash('sha256').update(jcsCanonicalize(value), 'utf8').digest('hex')}`;
+/** ADR-322C content ID over canonical bytes. `path` only labels errors
+ *  (e.g. `$.candidatePolicy`) so a number-rule violation inside a nested
+ *  object is reported at its position in the receipt. */
+export function contentIdOf(value: unknown, path = '$'): string {
+  return `sha256:${createHash('sha256').update(jcsCanonicalize(value, path), 'utf8').digest('hex')}`;
 }
 
 /** Scale-12 decimal encoding with trailing zeros stripped ('' / '-0' → '0'),
@@ -547,7 +563,7 @@ export function verifyExportedReceipt(
   }
 
   // Content IDs (§3).
-  if (contentIdOf(p['candidatePolicy']) !== p['candidateId']) throw new Error('candidate content ID mismatch');
+  if (contentIdOf(p['candidatePolicy'], '$.candidatePolicy') !== p['candidateId']) throw new Error('candidate content ID mismatch');
   const withoutReceiptId: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(p)) if (k !== 'receiptId') withoutReceiptId[k] = v;
   if (contentIdOf(withoutReceiptId) !== p['receiptId']) throw new Error('receipt content ID mismatch');

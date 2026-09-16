@@ -1,0 +1,200 @@
+{
+  "node": "v24.19.0",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "platform": "linux",
+  "chunkSize": 64,
+  "charsPerAgent": 8192,
+  "samples": 9,
+  "corpus": [
+    {
+      "path": "README.md",
+      "sha256": "dd4699599f7546ba4344fea592bc6dc697a7582810b464336c46a773a7711728"
+    },
+    {
+      "path": "docs/adr/ADR-391-autogenous-governed-self-evolving-architecture.md",
+      "sha256": "ac95231faf1ebbf04c361d7cb15d74547a18dd9d88dc1b5d4976accfdac2a32e"
+    },
+    {
+      "path": "docs/adr/ADR-392-autogenous-genome-language-antibody-protocol.md",
+      "sha256": "80f861709d7319f617b0fec07bab51ec6bf7602d15ef72ea405c25adbf5ee11a"
+    },
+    {
+      "path": "docs/adr/ADR-393-autogenous-product-thesis-adaptive-agent-firewall.md",
+      "sha256": "d0698b495265ed57a84d6f13565b347b43e3ab5d59a03dea6a57fc4de5e7acc1"
+    },
+    {
+      "path": "docs/adr/ADR-394-cryptographic-closure-of-the-promotion-path.md",
+      "sha256": "5c6fbb29f92b36ff483a310bcd52114c4a02c47f4ad111bd2e5cf7b51ea9f121"
+    },
+    {
+      "path": "docs/adr/ADR-395-radio-realtime-streaming-peer-expert-mesh.md",
+      "sha256": "9bd920522de0ae37b58ca39b672e0720465b60bb920ff76759ace0b0384f7cda"
+    },
+    {
+      "path": "docs/adr/ADR-396-peer-expert-protocol-security-and-governed-evolution.md",
+      "sha256": "2efba7535dea87855dbbf9a619820c407ac4a049930fb5fb4c3b084bff4adf49"
+    },
+    {
+      "path": "docs/adr/ADR-397-autogenous-streaming-mixture-of-agents.md",
+      "sha256": "1ff46d5497e36d3c20aa0c76dd3241e8c235f5658feeef620b12e446da9dd3f9"
+    },
+    {
+      "path": "docs/adr/ADR-398-applications-and-development-loop-integration.md",
+      "sha256": "98b2e23d6d39fdc3dea744cec48cec497c30ddf2a50521f7ff3a3fc6ae989b51"
+    },
+    {
+      "path": "docs/adr/ADR-399-provider-backed-mesh-run-rvm-rvf.md",
+      "sha256": "f431687fb6db1b8f66b0a1b13388a358dbbba8c1bbaab663458d506efe5d3906"
+    },
+    {
+      "path": "docs/adr/ADR-400-self-evolving-mesh-perpetual-loop.md",
+      "sha256": "ab743b0327684a5433f401af6d1de0b071c7169b15d3325737da12acccb8c3ec"
+    },
+    {
+      "path": "docs/adr/ADR-401-perpetual-intelligence-machine.md",
+      "sha256": "cf10ed2f0b167460971c89c635343e775dba5a362e3d5b90238896b778f01f39"
+    },
+    {
+      "path": "docs/adr/ADR-402-ruview-cognitum-spaces-spatial-intelligence.md",
+      "sha256": "a889479a4dabcc9db49dcd18794f360f56f857845df90f3d68cb04155b53a5bc"
+    },
+    {
+      "path": "docs/adr/ADR-403-verifiable-execution-loop.md",
+      "sha256": "54b23226aadbe37ddb4ca5ba541f217679bb983af255f9969a3d396eeec777fa"
+    },
+    {
+      "path": "docs/adr/ADR-404-regression-candidate-kind.md",
+      "sha256": "4f368790a7d63884b75bd777a6d06dca24e4bd565dede9aebcba92fe93ac449a"
+    },
+    {
+      "path": "docs/research/2026-08-16-mesh-dogfood-design.md",
+      "sha256": "f36d9c39a667e3a5fd2e16822476ccc4713aca9059b3e14b01bc66e2b04db549"
+    },
+    {
+      "path": "docs/research/2026-08-16-pim-new-angles.md",
+      "sha256": "02d9aa0bc7d6d352e34a181346100127f00ac53a8f6fdc985e60010c4e353b5b"
+    },
+    {
+      "path": "docs/research/2026-08-16-streaming-mixture-sota.md",
+      "sha256": "e6ad40464d1d95ef7575814f5b37f20b9207899058d683b98a4e11e50bf29a11"
+    }
+  ],
+  "results": [
+    {
+      "agents": 1,
+      "frames": 128,
+      "maxError": 0,
+      "baseline": {
+        "medianMs": 7.15799899999999,
+        "p95Ms": 7.745357000000013,
+        "usPerFrame": 55.92186718749992,
+        "samplesMs": [
+          7.745357000000013,
+          7.15799899999999,
+          6.779748000000012,
+          7.236558000000002,
+          6.822913999999997,
+          7.146131999999994,
+          6.840779999999995,
+          7.5403169999999875,
+          7.347115000000002
+        ]
+      },
+      "incremental": {
+        "medianMs": 0.37105999999999995,
+        "p95Ms": 0.6124650000000145,
+        "usPerFrame": 2.8989062499999996,
+        "samplesMs": [
+          0.38834600000001274,
+          0.5875680000000045,
+          0.34086499999997955,
+          0.32862599999998565,
+          0.37105999999999995,
+          0.5185140000000104,
+          0.6124650000000145,
+          0.36723499999999376,
+          0.3203940000000216
+        ]
+      },
+      "speedup": 19.29067805745699
+    },
+    {
+      "agents": 4,
+      "frames": 446,
+      "maxError": 0,
+      "baseline": {
+        "medianMs": 113.26604900000007,
+        "p95Ms": 122.14996500000007,
+        "usPerFrame": 253.9597511210764,
+        "samplesMs": [
+          107.24368400000003,
+          110.72331799999995,
+          108.66103400000009,
+          108.6179689999999,
+          113.26604900000007,
+          120.29296999999997,
+          118.29091600000015,
+          122.14996500000007,
+          122.02204100000017
+        ]
+      },
+      "incremental": {
+        "medianMs": 8.229258000000073,
+        "p95Ms": 13.615771999999993,
+        "usPerFrame": 18.451251121076396,
+        "samplesMs": [
+          8.47994600000004,
+          13.615771999999993,
+          8.229258000000073,
+          7.997757000000092,
+          8.05688599999985,
+          9.476470999999947,
+          8.086411999999882,
+          8.582810999999992,
+          8.00286600000004
+        ]
+      },
+      "speedup": 13.76382281367276
+    },
+    {
+      "agents": 16,
+      "frames": 1802,
+      "maxError": 0,
+      "baseline": {
+        "medianMs": 2152.4290739999997,
+        "p95Ms": 2206.5476500000004,
+        "usPerFrame": 1194.4667447280797,
+        "samplesMs": [
+          2206.5476500000004,
+          2125.2241019999983,
+          2167.057145999999,
+          2152.4290739999997,
+          2174.953919000003,
+          2134.0413039999985,
+          2119.4323939999995,
+          2149.8339360000027,
+          2177.392476000001
+        ]
+      },
+      "incremental": {
+        "medianMs": 210.72135700000035,
+        "p95Ms": 227.09533399999782,
+        "usPerFrame": 116.93749001109899,
+        "samplesMs": [
+          210.72135700000035,
+          211.72050599999966,
+          205.79576799999995,
+          205.46152199999779,
+          217.8758710000002,
+          227.09533399999782,
+          204.56132300000172,
+          202.59264000000258,
+          214.65454100000352
+        ]
+      },
+      "speedup": 10.214574852040252
+    }
+  ],
+  "checksum": 9180.031392842577,
+  "baselineRevision": "7bf327a9754ce798364dbee8b2825af42a421fd4"
+}

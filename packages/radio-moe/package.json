@@ -37,7 +37,8 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf dist",
     "prepack": "npm run build",
-    "bench:false-alert": "node --import tsx examples/bench-false-alert.ts"
+    "bench:false-alert": "node --import tsx examples/bench-false-alert.ts",
+    "bench:relevance": "node --import tsx examples/bench-relevance.ts"
   },
   "dependencies": {
     "@metaharness/radio": "^0.1.0"

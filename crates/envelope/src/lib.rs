@@ -34,6 +34,8 @@ use evaluator::{replay_packaged, wilson95, Corpus};
 use serde::{Deserialize, Serialize};
 use witness::{content_hash, SigningAuthority};
 
+pub mod rule_learning;
+
 /// Minimum evidence population a receipt must attest (the review's full bar is
 /// 100k; this is the enforced floor — production pins it higher per environment).
 pub const MIN_SAMPLES: usize = 1000;
@@ -129,6 +131,9 @@ impl CandidateManifest {
 /// A judge's signed evaluation receipt (finding #2/#3).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EvaluationReceipt {
+    /// Optional, signed evaluator evidence for verified rule learning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_learning: Option<rule_learning::RuleLearningEvidence>,
     pub candidate_hash: String,
     pub parent_hash: String,
     pub corpus_id: String,
@@ -150,6 +155,20 @@ pub struct EvaluationReceipt {
 }
 
 impl EvaluationReceipt {
+    /// Attach evidence and re-sign as the same evaluator. Hashes identify
+    /// artifacts; only this Ed25519 signature authenticates the evidence.
+    pub fn with_rule_learning(
+        mut self,
+        evidence: rule_learning::RuleLearningEvidence,
+        judge: &SigningAuthority,
+    ) -> Result<Self, String> {
+        if judge.public_hex() != self.judge_pubkey {
+            return Err("judge mismatch".into());
+        }
+        self.rule_learning = Some(evidence);
+        self.signature = judge.sign_hex(&self.signing_bytes());
+        Ok(self)
+    }
     fn signing_bytes(&self) -> Vec<u8> {
         let mut u = self.clone();
         u.signature = String::new();
@@ -186,6 +205,7 @@ pub fn evaluate_and_sign(
     let recall_ci = wilson95(c.malicious_detected, c.malicious_total);
     let fp_ci = wilson95(c.benign_flagged, c.benign_total);
     let mut r = EvaluationReceipt {
+        rule_learning: None,
         candidate_hash: candidate_hash.to_string(),
         parent_hash: parent_hash.to_string(),
         corpus_id: corpus_id.to_string(),
@@ -265,6 +285,7 @@ impl PromotionEnvelope {
 /// all that apply, so a maximally-malicious candidate is rejected for many.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Reject {
+    RuleLearning(String),
     ConstitutionMismatch,
     EnvelopeUnsigned,
     EnvelopeBadSignature,
@@ -434,6 +455,39 @@ pub fn verify_promotion_artifact(
     })
 }
 
+/// Trusted hosts admitting rule-learning candidates must use this entry point.
+/// It rejects capability omission rather than letting a generator choose to
+/// bypass the opt-in gate. All existing crypto and fitness checks still apply.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_rule_learning_promotion_artifact(
+    constitution: &Constitution,
+    parent: &Genome,
+    manifest: &CandidateManifest,
+    receipts: &[EvaluationReceipt],
+    envelope: &PromotionEnvelope,
+    proof_artifacts: &[ProofArtifact],
+    now: u64,
+) -> Result<VerifiedPromotion, Vec<Reject>> {
+    if !manifest
+        .requested_capabilities
+        .iter()
+        .any(|c| c == rule_learning::CAPABILITY)
+    {
+        return Err(vec![Reject::RuleLearning(
+            "trusted rule-learning path requires capability".into(),
+        )]);
+    }
+    verify_promotion_artifact(
+        constitution,
+        parent,
+        manifest,
+        receipts,
+        envelope,
+        proof_artifacts,
+        now,
+    )
+}
+
 /// The closed check. Returns **every** violation; an empty vec means the
 /// candidate is cryptographically admissible and promotable.
 #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
@@ -530,6 +584,24 @@ pub fn verify_promotion(
     // must independently clear beats-parent, non-inferiority, and the hard gates —
     // one failing judge is enough to reject.
     for r in &valid_receipts {
+        if manifest
+            .requested_capabilities
+            .iter()
+            .any(|c| c == rule_learning::CAPABILITY)
+        {
+            match &r.rule_learning {
+                Some(e) => {
+                    if let Err(reason) =
+                        e.validate(&cand_hash, &parent_hash, &r.corpus_id, &envelope.nonce)
+                    {
+                        rej.push(Reject::RuleLearning(reason));
+                    }
+                }
+                None => rej.push(Reject::RuleLearning(
+                    "missing signed rule-learning evidence".into(),
+                )),
+            }
+        }
         let better = r.candidate_recall_lo > r.parent_recall || r.candidate_fp_hi < r.parent_fp;
         if !better {
             rej.push(Reject::NotBetterThanParent);

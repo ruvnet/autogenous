@@ -167,6 +167,99 @@ fn a_fully_closed_candidate_passes_with_zero_rejections() {
     let (c, p, m, r, e, arts) = clean_case();
     let rejects = verify_promotion(&c, &p, &m, &r, &e, &arts, NOW);
     assert!(rejects.is_empty(), "clean candidate rejected: {rejects:?}");
+    assert!(!serde_json::to_string(&r[0])
+        .unwrap()
+        .contains("rule_learning"));
+    assert!(verify_rule_learning_promotion_artifact(&c, &p, &m, &r, &e, &arts, NOW).is_err());
+}
+
+#[test]
+fn rule_learning_uses_the_existing_signed_quorum_and_nonce() {
+    use crate::rule_learning::{FamilyEvidence, RuleLearningEvidence, CAPABILITY};
+    let (c, p, mut m, _, _, arts) = clean_case();
+    m.requested_capabilities.push(CAPABILITY.into());
+    let detector = Detector::Contains {
+        needle: "ignore previous instructions".into(),
+    };
+    let (mut receipts, _) = sign_closure(&c, &p, &m, &detector);
+    let ctrl = SigningAuthority::from_seed("controller", [3; 32]);
+    let seal = |rs: &[EvaluationReceipt]| {
+        PromotionEnvelope::signed(&ctrl, &c.hash(), &m.candidate_hash(), rs, "nonce", NOW, 600)
+    };
+    assert!(
+        verify_promotion(&c, &p, &m, &receipts, &seal(&receipts), &arts, NOW)
+            .iter()
+            .any(|r| matches!(r, Reject::RuleLearning(_)))
+    );
+    for (i, receipt) in receipts.iter_mut().enumerate() {
+        let judge = SigningAuthority::from_seed("judge", [(i + 1) as u8; 32]);
+        receipt.corpus_id = "d".repeat(64);
+        let evidence = RuleLearningEvidence {
+            schema: "rule-learning-evidence/v1".into(),
+            run_id: "nonce".into(),
+            candidate_hash: m.candidate_hash(),
+            parent_hash: content_hash(&p.hash),
+            rulebook_hash: "a".repeat(64),
+            executable_hash: "b".repeat(64),
+            trace_hash: "c".repeat(64),
+            hidden_corpus_hash: receipt.corpus_id.clone(),
+            families: (0..3)
+                .map(|j| FamilyEvidence {
+                    id: j.to_string(),
+                    seeds: vec![0, 1, 2, 3, 4],
+                    samples: 100,
+                    parent_successes: 50,
+                    candidate_successes: 70,
+                    parent_interactions: 100,
+                    candidate_interactions: 75,
+                })
+                .collect(),
+            replay_steps: 10,
+            replay_mismatches: 0,
+            independent_probes: 15,
+            failed_probes: 0,
+        };
+        *receipt = receipt
+            .clone()
+            .with_rule_learning(evidence, &judge)
+            .unwrap();
+    }
+    assert!(verify_promotion_artifact(&c, &p, &m, &receipts, &seal(&receipts), &arts, NOW).is_ok());
+    let mut tampered = receipts.clone();
+    tampered[0]
+        .rule_learning
+        .as_mut()
+        .unwrap()
+        .replay_mismatches = 1;
+    assert!(
+        verify_promotion(&c, &p, &m, &tampered, &seal(&tampered), &arts, NOW)
+            .iter()
+            .any(|r| matches!(r, Reject::ReceiptBadSignature(_)))
+    );
+    let replayed = PromotionEnvelope::signed(
+        &ctrl,
+        &c.hash(),
+        &m.candidate_hash(),
+        &receipts,
+        "new-run",
+        NOW,
+        600,
+    );
+    assert!(
+        verify_promotion(&c, &p, &m, &receipts, &replayed, &arts, NOW)
+            .iter()
+            .any(|r| matches!(r, Reject::RuleLearning(_)))
+    );
+    let judge = SigningAuthority::from_seed("judge", [1; 32]);
+    let mut evidence = receipts[0].rule_learning.clone().unwrap();
+    evidence.failed_probes = 1;
+    receipts[0] = receipts[0]
+        .clone()
+        .with_rule_learning(evidence, &judge)
+        .unwrap();
+    assert!(
+        verify_promotion_artifact(&c, &p, &m, &receipts, &seal(&receipts), &arts, NOW).is_err()
+    );
 }
 
 #[test]

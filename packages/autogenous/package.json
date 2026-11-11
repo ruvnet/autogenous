@@ -1,0 +1,59 @@
+{
+  "name": "autogenous",
+  "version": "0.1.0",
+  "description": "Autogenous Genome Language (AGL) for JavaScript: typed mutation admission, scope authority and hard-gate promotion checks from the Rust control plane, compiled to WebAssembly.",
+  "type": "module",
+  "license": "MIT",
+  "author": "rUv <ruv@ruv.net>",
+  "homepage": "https://ruv.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ruvnet/autogenous.git",
+    "directory": "packages/autogenous"
+  },
+  "bugs": {
+    "url": "https://github.com/ruvnet/autogenous/issues"
+  },
+  "keywords": [
+    "autogenous",
+    "agl",
+    "governed-evolution",
+    "mutation-admission",
+    "promotion-gate",
+    "hard-gates",
+    "self-improvement",
+    "ai-safety",
+    "agent-governance",
+    "webassembly",
+    "wasm",
+    "rust"
+  ],
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "wasm/autogenous_wasm.cjs",
+    "wasm/autogenous_wasm_bg.wasm",
+    "assets/autogenous.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "cargo build -p autogenous-wasm --target wasm32-unknown-unknown --release && wasm-bindgen --target nodejs --out-dir wasm --out-name autogenous_wasm \"${CARGO_TARGET_DIR:-../../target}/wasm32-unknown-unknown/release/autogenous_wasm.wasm\" && mv wasm/autogenous_wasm.js wasm/autogenous_wasm.cjs",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "node -e \"require('fs').accessSync('wasm/autogenous_wasm_bg.wasm')\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

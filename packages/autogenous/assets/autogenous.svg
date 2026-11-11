@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" width="720" height="180" role="img" aria-labelledby="t d">
+  <title id="t">autogenous admission flow</title>
+  <desc id="d">A typed mutation passes four AGL checks (authority, invariants, rollback, expiry) before it can be promoted.</desc>
+  <style>
+    text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; fill: #e6edf3; }
+    .box { fill: #161b22; stroke: #30363d; stroke-width: 1.5; rx: 8; }
+    .gate { fill: #0d1117; stroke: #3fb950; stroke-width: 1.5; }
+    .label { font-size: 11px; fill: #8b949e; }
+  </style>
+  <rect width="720" height="180" fill="#0d1117"/>
+  <rect class="box" x="16" y="60" width="120" height="56"/>
+  <text x="76" y="86" text-anchor="middle">Mutation</text>
+  <text class="label" x="76" y="104" text-anchor="middle">routing_budget</text>
+  <g>
+    <rect class="gate" x="170" y="64" width="96" height="48" rx="6"/><text x="218" y="93" text-anchor="middle">authority</text>
+    <rect class="gate" x="282" y="64" width="96" height="48" rx="6"/><text x="330" y="93" text-anchor="middle">invariants</text>
+    <rect class="gate" x="394" y="64" width="96" height="48" rx="6"/><text x="442" y="93" text-anchor="middle">rollback</text>
+    <rect class="gate" x="506" y="64" width="96" height="48" rx="6"/><text x="554" y="93" text-anchor="middle">expiry</text>
+  </g>
+  <rect class="box" x="626" y="60" width="80" height="56"/>
+  <text x="666" y="93" text-anchor="middle">admit</text>
+  <text class="label" x="360" y="150" text-anchor="middle">every check runs in Rust (agl-types), compiled to WebAssembly</text>
+  <circle r="7" fill="#58a6ff" cy="88">
+    <animate attributeName="cx" values="76;218;330;442;554;666;666" keyTimes="0;0.15;0.3;0.45;0.6;0.8;1" dur="4s" repeatCount="indefinite"/>
+    <animate attributeName="fill" values="#58a6ff;#58a6ff;#58a6ff;#58a6ff;#58a6ff;#3fb950;#3fb950" keyTimes="0;0.15;0.3;0.45;0.6;0.8;1" dur="4s" repeatCount="indefinite"/>
+  </circle>
+</svg>

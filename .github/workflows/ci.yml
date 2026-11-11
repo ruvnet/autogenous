@@ -34,3 +34,24 @@ jobs:
       - run: npm run build
       - run: npm pack --dry-run
       - run: npm audit --omit=dev
+  autogenous-npm:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/autogenous
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: cargo install wasm-bindgen-cli --locked --version 0.2.126
+      - run: npm run build
+      - run: npm test
+      - name: Pack and run the README quickstart against the tarball
+        run: |
+          set -euo pipefail
+          TGZ="$PWD/$(npm pack --silent | tail -1)"
+          tar tzf "$TGZ" | grep -q 'package/wasm/autogenous_wasm_bg.wasm'
+          awk '/^```js$/{f=1;next}/^```$/{f=0}f' README.md > "$RUNNER_TEMP/quickstart.mjs"
+          cd "$RUNNER_TEMP" && npm init -y >/dev/null && npm install "$TGZ" && node quickstart.mjs

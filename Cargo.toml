@@ -17,6 +17,7 @@ members = [
   "crates/deployment",
   "crates/ledger",
   "crates/service",
+  "crates/autogenous-wasm",
 ]
 
 [workspace.package]

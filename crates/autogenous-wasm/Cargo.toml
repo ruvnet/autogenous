@@ -1,0 +1,20 @@
+# autogenous-wasm — WebAssembly boundary for the `autogenous` npm package.
+# Exposes the AGL admission check, scope policy and hard-gate predicate from
+# agl-types to JavaScript. Not published to crates.io; it ships inside npm.
+[package]
+name = "autogenous-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "WebAssembly boundary for the autogenous npm package (AGL admission, scope policy, hard gates)."
+repository = "https://github.com/ruvnet/autogenous"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+agl-types = { path = "../agl-types" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wasm-bindgen = "=0.2.126"
